@@ -10,7 +10,12 @@ import (
 	"github.com/ipld/go-ipld-prime/datamodel"
 )
 
-func (b Block) Navigate(path datamodel.Path, visitFn func(reason string, depth int, b Block)) error {
+func (b Block) Navigate(
+	path datamodel.Path,
+	scope DagScope,
+	bytes ByteRange,
+	visitFn func(reason string, depth int, b Block),
+) error {
 	visitFn("/", 0, b)
 
 	progress := datamodel.Path{}
@@ -33,6 +38,9 @@ outer:
 					}
 					depth++
 					visitFn("/"+nextSeg.String(), depth, blk)
+					if scope == DagScopeEntity && path.Len() == 0 {
+						return blk.visitAllEntity("/"+nextSeg.String(), bytes, depth+1, visitFn)
+					}
 					curr = blk
 					continue outer
 				}
@@ -47,6 +55,9 @@ outer:
 			}
 			depth = _depth
 			visitFn("/"+nextSeg.String(), depth, child)
+			if scope == DagScopeEntity && path.Len() == 0 {
+				return child.visitAllEntity("/"+nextSeg.String(), bytes, depth+1, visitFn)
+			}
 			curr = child
 			continue outer
 		default:
@@ -55,9 +66,11 @@ outer:
 
 		return fmt.Errorf("segment not found in %s: %s / %s", data.DataTypeNames[curr.DataType], nextSeg.String(), path.String())
 	}
+	if scope == DagScopeBlock {
+		return nil
+	}
 	if curr.DataType == data.Data_File {
-		fmt.Println("Visit all file")
-		return curr.visitAll("/"+nextSeg.String(), depth+1, visitFn)
+		return curr.visitAllFile("/"+nextSeg.String(), bytes, depth+1, visitFn)
 	}
 	return curr.visitAll("*", depth+1, visitFn)
 }
@@ -72,6 +85,70 @@ func (b Block) visitAll(reason string, depth int, visitFn func(reason string, de
 		if err := blk.visitAll(reason, depth+1, visitFn); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func (b Block) visitAllFile(reason string, bytes ByteRange, depth int, visitFn func(reason string, depth int, b Block)) error {
+	from := bytes.From
+	to := bytes.To
+	if from < 0 {
+		from = b.Length() + from
+		if from < 0 {
+			from = 0
+		}
+	}
+	if to < 0 {
+		to = b.Length() + to
+		if to < 0 {
+			to = 0
+		}
+	}
+	if from > to {
+		return fmt.Errorf("invalid range (len=%d) %s (orig=%s)", b.Length(), ByteRange{From: from, To: to}.String(), bytes.String())
+	}
+
+	var visit func(b Block, depth int) error
+	visit = func(b Block, depth int) error {
+		if len(b.Children) > 0 && b.DataType != data.Data_File {
+			return errors.New("expected file")
+		}
+		for ii, child := range b.Children {
+			if child.ByteOffset+b.BlockSizes[ii] < from {
+				continue
+			}
+			if child.ByteOffset > to {
+				continue
+			}
+			blk, err := child.Block()
+			if err != nil {
+				return err
+			}
+			visitFn(reason, depth, blk)
+			if err := visit(blk, depth+1); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	return visit(b, depth)
+}
+
+func (b Block) visitAllEntity(reason string, bytes ByteRange, depth int, visitFn func(reason string, depth int, b Block)) error {
+	if b.DataType == data.Data_File {
+		return b.visitAllFile(reason, bytes, depth, visitFn)
+	}
+
+	for _, child := range b.Children {
+		blk, err := child.Block()
+		if err != nil {
+			return err
+		}
+		if "/"+blk.UnixfsPath.Last().String() != reason {
+			continue
+		}
+		visitFn(reason, depth, blk)
+		blk.visitAllEntity(reason, bytes, depth+1, visitFn)
 	}
 	return nil
 }

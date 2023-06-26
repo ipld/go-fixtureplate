@@ -23,8 +23,9 @@ type Block struct {
 	Children   []Child
 	ByteOffset int64
 	ByteSize   int64
-	Arity      int64  // for sharded nodes
-	FieldData  []byte // bitfield data for sharded nodes
+	Arity      int64   // for sharded nodes
+	FieldData  []byte  // bitfield data for sharded nodes
+	BlockSizes []int64 // for sharded files
 }
 
 type Child struct {
@@ -71,6 +72,7 @@ func NewBlockWith(
 	var children []Child
 	var fieldData []byte
 	var arity int64
+	var blockSizes []int64
 
 	if node.Kind() == datamodel.Kind_Bytes {
 		byt, err := node.AsBytes()
@@ -111,11 +113,11 @@ func NewBlockWith(
 			}
 		case data.Data_File:
 			children = make([]Child, pbNode.Links.Length())
-			lengths := make([]int64, ufsData.BlockSizes.Length())
+			blockSizes = make([]int64, ufsData.BlockSizes.Length())
 			li := ufsData.BlockSizes.Iterator()
 			for !li.Done() {
 				ii, v := li.Next()
-				lengths[ii] = v.Int()
+				blockSizes[ii] = v.Int()
 			}
 			var offset int64
 			for itr := pbNode.Links.Iterator(); !itr.Done(); {
@@ -130,8 +132,8 @@ func NewBlockWith(
 					UnixfsPath: unixfsPath,
 					ByteOffset: byteOffset + offset, // TODO: is this correct for nested file structures?
 				}
-				offset += lengths[ii]
-				byteSize += lengths[ii]
+				offset += blockSizes[ii]
+				byteSize += blockSizes[ii]
 			}
 		case data.Data_HAMTShard:
 			arity = ufsData.FieldFanout().Must().Int()
@@ -173,8 +175,9 @@ func NewBlockWith(
 		ByteOffset: byteOffset,
 		ByteSize:   byteSize,
 		Children:   children,
-		FieldData:  fieldData,
 		Arity:      arity,
+		FieldData:  fieldData,
+		BlockSizes: blockSizes,
 	}, nil
 }
 
@@ -183,4 +186,12 @@ func (b Block) DataTypeString() string {
 		return dtn
 	}
 	return "RawLeaf"
+}
+
+func (b Block) Length() int64 {
+	var l int64
+	for _, c := range b.BlockSizes {
+		l += c
+	}
+	return l
 }

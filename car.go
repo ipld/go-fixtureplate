@@ -14,7 +14,7 @@ import (
 func LinkSystem(carFile *os.File) (ipld.LinkSystem, cid.Cid, error) {
 	storage, err := storagecar.OpenReadable(carFile)
 	if err != nil {
-		return ipld.LinkSystem{}, cid.Undef, nil
+		return ipld.LinkSystem{}, cid.Undef, err
 	}
 
 	var root cid.Cid

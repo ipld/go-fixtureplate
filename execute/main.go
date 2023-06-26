@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,28 +11,11 @@ import (
 )
 
 func main() {
-	fileName := os.Args[1]
+	block, carFile := loadCar()
+	defer carFile.Close()
 	var path string
 	if len(os.Args) > 2 {
 		path = os.Args[2]
-	}
-
-	var block fixtureplate.Block
-	switch filepath.Ext(fileName) {
-	case ".car":
-		var err error
-		block, err = blockFromCar(fileName)
-		if err != nil {
-			panic(err)
-		}
-	case ".json":
-		var err error
-		block, err = blockFromJson(fileName)
-		if err != nil {
-			panic(err)
-		}
-	default:
-		panic("unknown file extension")
 	}
 
 	var lastDepth int
@@ -42,14 +24,25 @@ func main() {
 		if depth > lastDepth {
 			depthPad = depthPad[:len(depthPad)-2] + "↳ "
 		}
+		fo := ""
+		if reason == "*" {
+			fo = fmt.Sprintf(" (/%s", blk.UnixfsPath.Last().String())
+		}
+		if blk.ByteSize > 0 {
+			fo += fmt.Sprintf("[%d:%d]", blk.ByteOffset, blk.ByteSize)
+		}
+		if reason == "*" {
+			fo += ")"
+		}
+		fmt.Printf("%-10s | %-9s | %s%s%s\n", blk.Cid, blk.DataTypeString(), depthPad, reason, fo)
 		lastDepth = depth
-		fmt.Printf("%-10s | %-9s | %s%s\n", blk.Cid, blk.DataType, depthPad, reason)
 	}); err != nil {
 		panic(err)
 	}
 }
 
-func blockFromCar(fileName string) (fixtureplate.Block, error) {
+func loadCar() (fixtureplate.Block, *os.File) {
+	fileName := os.Args[1]
 	carPath, err := filepath.Abs(fileName)
 	if err != nil {
 		panic(err)
@@ -58,27 +51,13 @@ func blockFromCar(fileName string) (fixtureplate.Block, error) {
 	if err != nil {
 		panic(err)
 	}
-	defer carFile.Close()
 	ls, root, err := fixtureplate.LinkSystem(carFile)
 	if err != nil {
 		panic(err)
 	}
-	return fixtureplate.Iterate(ls, ipld.Path{}, ipld.Path{}, root)
-}
-
-func blockFromJson(fileName string) (fixtureplate.Block, error) {
-	var block fixtureplate.Block
-	filePath, err := filepath.Abs(fileName)
+	block, err := fixtureplate.NewBlock(ls, root)
 	if err != nil {
 		panic(err)
 	}
-	file, err := os.Open(filePath)
-	if err != nil {
-		panic(err)
-	}
-	defer file.Close()
-	if err := json.NewDecoder(file).Decode(&block); err != nil {
-		panic(err)
-	}
-	return block, nil
+	return block, carFile
 }

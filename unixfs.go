@@ -3,11 +3,34 @@ package fixtureplate
 import (
 	"errors"
 	"fmt"
-	"math/bits"
 
 	"github.com/ipfs/go-unixfsnode/data"
+	dagpb "github.com/ipld/go-codec-dagpb"
+	"github.com/ipld/go-ipld-prime"
 	"github.com/spaolacci/murmur3"
 )
+
+func toPbnode(node ipld.Node) (dagpb.PBNode, error) {
+	pbb := dagpb.Type.PBNode.NewBuilder()
+	if err := pbb.AssignNode(node); err != nil {
+		return nil, err
+	}
+	return pbb.Build().(dagpb.PBNode), nil
+}
+
+func toData(node dagpb.PBNode) (data.UnixFSData, error) {
+	if !node.Data.Exists() {
+		return nil, fmt.Errorf("no data")
+	}
+	ufsBytes := node.Data.Must().Bytes()
+	ufsNode, err := data.DecodeUnixFSData(ufsBytes)
+	if err != nil {
+		return nil, err
+	}
+	return ufsNode, nil
+}
+
+/* --------- HAMT --------- */
 
 func hash(val []byte) []byte {
 	h := murmur3.New64()
@@ -57,12 +80,4 @@ func (hb *hashBits) next(i int) int {
 	out += hb.next(i - leftb)
 	return out
 
-}
-
-func log2Size(nd data.UnixFSData) int {
-	return bits.TrailingZeros(uint(nd.FieldFanout().Must().Int()))
-}
-
-func maxPadLength(nd data.UnixFSData) int {
-	return len(fmt.Sprintf("%X", nd.FieldFanout().Must().Int()-1))
 }

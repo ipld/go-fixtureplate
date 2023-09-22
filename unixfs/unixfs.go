@@ -1,4 +1,4 @@
-package fixtureplate
+package unixfs
 
 import (
 	"errors"
@@ -10,7 +10,7 @@ import (
 	"github.com/spaolacci/murmur3"
 )
 
-func toPbnode(node ipld.Node) (dagpb.PBNode, error) {
+func ToPbnode(node ipld.Node) (dagpb.PBNode, error) {
 	pbb := dagpb.Type.PBNode.NewBuilder()
 	if err := pbb.AssignNode(node); err != nil {
 		return nil, err
@@ -18,7 +18,7 @@ func toPbnode(node ipld.Node) (dagpb.PBNode, error) {
 	return pbb.Build().(dagpb.PBNode), nil
 }
 
-func toData(node dagpb.PBNode) (data.UnixFSData, error) {
+func ToData(node dagpb.PBNode) (data.UnixFSData, error) {
 	if !node.Data.Exists() {
 		return nil, fmt.Errorf("no data")
 	}
@@ -32,16 +32,16 @@ func toData(node dagpb.PBNode) (data.UnixFSData, error) {
 
 /* --------- HAMT --------- */
 
-func hash(val []byte) []byte {
+func Hash(val []byte) []byte {
 	h := murmur3.New64()
 	h.Write(val)
 	return h.Sum(nil)
 }
 
-// hashBits is a helper that allows the reading of the 'next n bits' as an integer.
-type hashBits struct {
-	b        []byte
-	consumed int
+// HashBits is a helper that allows the reading of the 'next n bits' as an integer.
+type HashBits struct {
+	Bits     []byte
+	Consumed int
 }
 
 func mkmask(n int) byte {
@@ -50,33 +50,33 @@ func mkmask(n int) byte {
 
 // Next returns the next 'i' bits of the hashBits value as an integer, or an
 // error if there aren't enough bits.
-func (hb *hashBits) Next(i int) (int, error) {
-	if hb.consumed+i > len(hb.b)*8 {
+func (hb *HashBits) Next(i int) (int, error) {
+	if hb.Consumed+i > len(hb.Bits)*8 {
 		return 0, errors.New("hamt is too deep")
 	}
 	return hb.next(i), nil
 }
 
-func (hb *hashBits) next(i int) int {
-	curbi := hb.consumed / 8
-	leftb := 8 - (hb.consumed % 8)
+func (hb *HashBits) next(i int) int {
+	curbi := hb.Consumed / 8
+	leftb := 8 - (hb.Consumed % 8)
 
-	curb := hb.b[curbi]
+	curb := hb.Bits[curbi]
 	if i == leftb {
 		out := int(mkmask(i) & curb)
-		hb.consumed += i
+		hb.Consumed += i
 		return out
 	}
 	if i < leftb {
 		a := curb & mkmask(leftb) // mask out the high bits we don't want
 		b := a & ^mkmask(leftb-i) // mask out the low bits we don't want
 		c := b >> uint(leftb-i)   // shift whats left down
-		hb.consumed += i
+		hb.Consumed += i
 		return int(c)
 	}
 	out := int(mkmask(leftb) & curb)
 	out <<= uint(i - leftb)
-	hb.consumed += leftb
+	hb.Consumed += leftb
 	out += hb.next(i - leftb)
 	return out
 

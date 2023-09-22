@@ -1,10 +1,11 @@
-package fixtureplate
+package block
 
 import (
 	"fmt"
 
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-unixfsnode/data"
+	"github.com/ipld/go-fixtureplate/unixfs"
 	"github.com/ipld/go-ipld-prime/datamodel"
 	"github.com/ipld/go-ipld-prime/linking"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
@@ -81,11 +82,11 @@ func NewBlockWith(
 		}
 		byteSize = int64(len(byt))
 	} else {
-		pbNode, err := toPbnode(node)
+		pbNode, err := unixfs.ToPbnode(node)
 		if err != nil {
 			return Block{}, err
 		}
-		ufsData, err := toData(pbNode)
+		ufsData, err := unixfs.ToData(pbNode)
 		if err != nil {
 			return Block{}, err
 		}

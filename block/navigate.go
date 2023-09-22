@@ -1,19 +1,22 @@
-package fixtureplate
+package block
 
 import (
 	"errors"
 	"fmt"
+	"math"
 	"math/bits"
 
 	"github.com/ipfs/go-bitfield"
 	"github.com/ipfs/go-unixfsnode/data"
+	"github.com/ipld/go-fixtureplate/unixfs"
 	"github.com/ipld/go-ipld-prime/datamodel"
+	trustlessutils "github.com/ipld/go-trustless-utils"
 )
 
 func (b Block) Navigate(
 	path datamodel.Path,
-	scope DagScope,
-	bytes ByteRange,
+	scope trustlessutils.DagScope,
+	bytes trustlessutils.ByteRange,
 	visitFn func(reason string, depth int, b Block),
 ) error {
 	visitFn("/", 0, b)
@@ -38,7 +41,7 @@ outer:
 					}
 					depth++
 					visitFn("/"+nextSeg.String(), depth, blk)
-					if scope == DagScopeEntity && path.Len() == 0 {
+					if scope == trustlessutils.DagScopeEntity && path.Len() == 0 {
 						return blk.visitAllEntity("/"+nextSeg.String(), bytes, depth+1, visitFn)
 					}
 					curr = blk
@@ -55,7 +58,7 @@ outer:
 			}
 			depth = _depth
 			visitFn("/"+nextSeg.String(), depth, child)
-			if scope == DagScopeEntity && path.Len() == 0 {
+			if scope == trustlessutils.DagScopeEntity && path.Len() == 0 {
 				return child.visitAllEntity("/"+nextSeg.String(), bytes, depth+1, visitFn)
 			}
 			curr = child
@@ -66,11 +69,16 @@ outer:
 
 		return fmt.Errorf("segment not found in %s: %s / %s", data.DataTypeNames[curr.DataType], nextSeg.String(), path.String())
 	}
-	if scope == DagScopeBlock {
+	if scope == trustlessutils.DagScopeBlock {
 		return nil
 	}
-	if curr.DataType == data.Data_File {
+	switch curr.DataType {
+	case data.Data_File:
 		return curr.visitAllFile("/"+nextSeg.String(), bytes, depth+1, visitFn)
+	case data.Data_Directory:
+		if scope == trustlessutils.DagScopeEntity && path.Len() == 0 {
+			return curr.visitAllEntity("/"+nextSeg.String(), bytes, depth+1, visitFn)
+		}
 	}
 	return curr.visitAll("*", depth+1, visitFn)
 }
@@ -89,9 +97,12 @@ func (b Block) visitAll(reason string, depth int, visitFn func(reason string, de
 	return nil
 }
 
-func (b Block) visitAllFile(reason string, bytes ByteRange, depth int, visitFn func(reason string, depth int, b Block)) error {
+func (b Block) visitAllFile(reason string, bytes trustlessutils.ByteRange, depth int, visitFn func(reason string, depth int, b Block)) error {
 	from := bytes.From
-	to := bytes.To
+	var to int64 = math.MaxInt64
+	if bytes.To != nil {
+		to = *bytes.To
+	}
 	if from < 0 {
 		from = b.Length() + from
 		if from < 0 {
@@ -105,7 +116,8 @@ func (b Block) visitAllFile(reason string, bytes ByteRange, depth int, visitFn f
 		}
 	}
 	if from > to {
-		return fmt.Errorf("invalid range (len=%d) %s (orig=%s)", b.Length(), ByteRange{From: from, To: to}.String(), bytes.String())
+		br := &trustlessutils.ByteRange{From: from, To: &to}
+		return fmt.Errorf("invalid range (len=%d) %s (orig=%s)", b.Length(), br.String(), bytes.String())
 	}
 
 	var visit func(b Block, depth int) error
@@ -114,7 +126,7 @@ func (b Block) visitAllFile(reason string, bytes ByteRange, depth int, visitFn f
 			return errors.New("expected file")
 		}
 		for ii, child := range b.Children {
-			if child.ByteOffset+b.BlockSizes[ii] < from {
+			if child.ByteOffset+b.BlockSizes[ii]-1 < from {
 				continue
 			}
 			if child.ByteOffset > to {
@@ -134,7 +146,7 @@ func (b Block) visitAllFile(reason string, bytes ByteRange, depth int, visitFn f
 	return visit(b, depth)
 }
 
-func (b Block) visitAllEntity(reason string, bytes ByteRange, depth int, visitFn func(reason string, depth int, b Block)) error {
+func (b Block) visitAllEntity(reason string, bytes trustlessutils.ByteRange, depth int, visitFn func(reason string, depth int, b Block)) error {
 	if b.DataType == data.Data_File {
 		return b.visitAllFile(reason, bytes, depth, visitFn)
 	}
@@ -157,7 +169,7 @@ func (b Block) findInHamt(key string, depth int, visitFn func(reason string, dep
 	if b.Arity <= 0 {
 		return Block{}, 0, false, errors.New("no fanout (arity) for hamt node")
 	}
-	hv := &hashBits{b: hash([]byte(key))}
+	hv := &unixfs.HashBits{Bits: unixfs.Hash([]byte(key))}
 	log2 := bits.TrailingZeros(uint(b.Arity))
 	node := b
 	for { // descend into hamt
@@ -188,7 +200,7 @@ func (b Block) findInHamt(key string, depth int, visitFn func(reason string, dep
 		if err != nil {
 			return Block{}, 0, false, err
 		}
-		if blk.DataType == data.Data_HAMTShard {
+		if blk.UnixfsPath.String() == b.UnixfsPath.String() && blk.DataType == data.Data_HAMTShard {
 			visitFn("<hamt>", depth, blk)
 			node = blk
 			depth++

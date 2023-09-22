@@ -1,4 +1,4 @@
-package fixtureplate
+package car
 
 import (
 	"os"

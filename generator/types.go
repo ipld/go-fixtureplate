@@ -7,13 +7,13 @@ import (
 	"strings"
 
 	"github.com/dustin/go-humanize"
-	unixfs "github.com/ipfs/go-unixfsnode/testutil"
+	unixfstestutil "github.com/ipfs/go-unixfsnode/testutil"
 	"github.com/ipld/go-ipld-prime/linking"
 	trustlesstestutil "github.com/ipld/go-trustless-utils/testutil"
 )
 
 type Entity interface {
-	Generate(lsys linking.LinkSystem, rnd *rand.Rand) (unixfs.DirEntry, error)
+	Generate(lsys linking.LinkSystem, rnd *rand.Rand) (unixfstestutil.DirEntry, error)
 	String() string
 	Describe(indent string) string
 }
@@ -82,7 +82,7 @@ func (f File) Describe(indent string) string {
 // Generate _one_ of the files described by this descriptor. If there are
 // multiple files described by this descriptor, call this function multiple
 // times.
-func (f File) Generate(lsys linking.LinkSystem, rand *rand.Rand) (unixfs.DirEntry, error) {
+func (f File) Generate(lsys linking.LinkSystem, rand *rand.Rand) (unixfstestutil.DirEntry, error) {
 	var rndReader io.Reader = rand
 	if f.ZeroContent {
 		rndReader = trustlesstestutil.ZeroReader{}
@@ -96,7 +96,7 @@ func (f File) Generate(lsys linking.LinkSystem, rand *rand.Rand) (unixfs.DirEntr
 			}
 		}
 	}
-	return unixfs.UnixFSFile(lsys, targetFileSize, unixfs.WithRandReader(rndReader))
+	return unixfstestutil.UnixFSFile(lsys, targetFileSize, unixfstestutil.WithRandReader(rndReader))
 }
 
 type DirType string
@@ -170,7 +170,7 @@ func (d Directory) Describe(indent string) string {
 	return sb.String()
 }
 
-func (d Directory) Generate(lsys linking.LinkSystem, rand *rand.Rand) (unixfs.DirEntry, error) {
+func (d Directory) Generate(lsys linking.LinkSystem, rand *rand.Rand) (unixfstestutil.DirEntry, error) {
 	var sbw int
 	if d.Type == DirType_Sharded {
 		sbw = 4
@@ -187,7 +187,7 @@ func (d Directory) Generate(lsys linking.LinkSystem, rand *rand.Rand) (unixfs.Di
 			multiplier = et.Multiplier
 			rndMultiplier = et.RandomMultiplier
 		default:
-			panic(fmt.Sprintf("unknown entity type: %T", et))
+			return unixfstestutil.DirEntry{}, fmt.Errorf("unknown entity type: %T", et)
 		}
 		if rndMultiplier {
 			for {
@@ -202,12 +202,12 @@ func (d Directory) Generate(lsys linking.LinkSystem, rand *rand.Rand) (unixfs.Di
 		}
 	}
 	chidx := 0
-	return unixfs.UnixFSDirectory(
+	return unixfstestutil.UnixFSDirectory(
 		lsys,
 		0,
-		unixfs.WithRandReader(rand),
-		unixfs.WithShardBitwidth(sbw),
-		unixfs.WithChildGenerator(func(name string) (*unixfs.DirEntry, error) {
+		unixfstestutil.WithRandReader(rand),
+		unixfstestutil.WithShardBitwidth(sbw),
+		unixfstestutil.WithChildGenerator(func(name string) (*unixfstestutil.DirEntry, error) {
 			if chidx >= len(children) {
 				return nil, nil
 			}

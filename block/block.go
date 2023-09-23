@@ -27,6 +27,7 @@ type Block struct {
 	Arity      int64   // for sharded nodes
 	FieldData  []byte  // bitfield data for sharded nodes
 	BlockSizes []int64 // for sharded files
+	ShardIndex string
 }
 
 type Child struct {
@@ -37,13 +38,14 @@ type Child struct {
 	IpldPath   datamodel.Path
 	UnixfsPath datamodel.Path
 	ByteOffset int64
+	ShardIndex string
 }
 
 func (c *Child) Block() (Block, error) {
 	if c.block != nil {
 		return *c.block, nil
 	}
-	block, err := NewBlockWith(c.ls, c.Cid, c.IpldPath, c.UnixfsPath, c.ByteOffset)
+	block, err := NewBlockWith(c.ls, c.Cid, c.IpldPath, c.UnixfsPath, c.ByteOffset, c.ShardIndex)
 	if err != nil {
 		return Block{}, err
 	}
@@ -52,7 +54,7 @@ func (c *Child) Block() (Block, error) {
 }
 
 func NewBlock(ls linking.LinkSystem, c cid.Cid) (Block, error) {
-	return NewBlockWith(ls, c, datamodel.Path{}, datamodel.Path{}, 0)
+	return NewBlockWith(ls, c, datamodel.Path{}, datamodel.Path{}, 0, "")
 }
 
 func NewBlockWith(
@@ -61,6 +63,7 @@ func NewBlockWith(
 	ipldPath,
 	unixfsPath datamodel.Path,
 	byteOffset int64,
+	shardIndex string,
 ) (Block, error) {
 
 	node, err := ls.Load(linking.LinkContext{}, cidlink.Link{Cid: c}, basicnode.Prototype.Any)
@@ -146,6 +149,7 @@ func NewBlockWith(
 				if !v.Name.Exists() {
 					return Block{}, fmt.Errorf("directory link has no name")
 				}
+				pfx := v.Name.Must().String()[:pfxLen]
 				name := v.Name.Must().String()[pfxLen:]
 				unixfsPath := unixfsPath
 				if name != "" {
@@ -156,6 +160,7 @@ func NewBlockWith(
 					Cid:        v.Hash.Link().(cidlink.Link).Cid,
 					IpldPath:   ipldPath.AppendSegmentString("Links").AppendSegmentInt(ii).AppendSegmentString("Hash"),
 					UnixfsPath: unixfsPath,
+					ShardIndex: pfx,
 				}
 			}
 		case data.Data_Metadata:
@@ -179,6 +184,7 @@ func NewBlockWith(
 		Arity:      arity,
 		FieldData:  fieldData,
 		BlockSizes: blockSizes,
+		ShardIndex: shardIndex,
 	}, nil
 }
 

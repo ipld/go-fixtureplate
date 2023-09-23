@@ -4,6 +4,8 @@ go 1.20
 
 replace github.com/ipfs/go-unixfsnode => ../../ipfs/go-unixfsnode
 
+replace github.com/ipld/go-ipld-prime => ../../ipld/go-ipld-prime
+
 require (
 	github.com/dustin/go-humanize v1.0.1
 	github.com/ipfs/go-bitfield v1.1.0

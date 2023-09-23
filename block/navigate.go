@@ -17,12 +17,12 @@ func (b Block) Navigate(
 	path datamodel.Path,
 	scope trustlessutils.DagScope,
 	bytes trustlessutils.ByteRange,
-	visitFn func(reason string, depth int, b Block),
+	visitFn func(p datamodel.Path, depth int, b Block),
 ) error {
-	visitFn("/", 0, b)
+	visitFn(datamodel.EmptyPath, 0, b)
 
 	progress := datamodel.Path{}
-	var nextSeg datamodel.PathSegment
+	nextSeg := datamodel.EmptyPathSegment
 	curr := b
 	depth := 0
 
@@ -40,16 +40,16 @@ outer:
 						return err
 					}
 					depth++
-					visitFn("/"+nextSeg.String(), depth, blk)
+					visitFn(progress, depth, blk)
 					if scope == trustlessutils.DagScopeEntity && path.Len() == 0 {
-						return blk.visitAllEntity("/"+nextSeg.String(), bytes, depth+1, visitFn)
+						break outer
 					}
 					curr = blk
 					continue outer
 				}
 			}
 		case data.Data_HAMTShard:
-			child, _depth, found, err := curr.findInHamt(nextSeg.String(), depth+1, visitFn)
+			child, _depth, found, err := curr.findInHamt(progress, depth+1, visitFn)
 			if err != nil {
 				return err
 			}
@@ -57,9 +57,9 @@ outer:
 				return errors.New("not found in HAMT")
 			}
 			depth = _depth
-			visitFn("/"+nextSeg.String(), depth, child)
+			visitFn(progress, depth, child)
 			if scope == trustlessutils.DagScopeEntity && path.Len() == 0 {
-				return child.visitAllEntity("/"+nextSeg.String(), bytes, depth+1, visitFn)
+				break outer
 			}
 			curr = child
 			continue outer
@@ -69,35 +69,32 @@ outer:
 
 		return fmt.Errorf("segment not found in %s: %s / %s", data.DataTypeNames[curr.DataType], nextSeg.String(), path.String())
 	}
-	if scope == trustlessutils.DagScopeBlock {
+
+	switch scope {
+	case trustlessutils.DagScopeBlock:
 		return nil
+	case trustlessutils.DagScopeEntity:
+		return curr.visitAllEntity(progress, bytes, depth+1, visitFn)
 	}
-	switch curr.DataType {
-	case data.Data_File:
-		return curr.visitAllFile("/"+nextSeg.String(), bytes, depth+1, visitFn)
-	case data.Data_Directory:
-		if scope == trustlessutils.DagScopeEntity && path.Len() == 0 {
-			return curr.visitAllEntity("/"+nextSeg.String(), bytes, depth+1, visitFn)
-		}
-	}
-	return curr.visitAll("*", depth+1, visitFn)
+
+	return curr.visitAll(progress, depth+1, visitFn)
 }
 
-func (b Block) visitAll(reason string, depth int, visitFn func(reason string, depth int, b Block)) error {
+func (b Block) visitAll(p datamodel.Path, depth int, visitFn func(p datamodel.Path, depth int, b Block)) error {
 	for _, child := range b.Children {
 		blk, err := child.Block()
 		if err != nil {
 			return err
 		}
-		visitFn(reason, depth, blk)
-		if err := blk.visitAll(reason, depth+1, visitFn); err != nil {
+		visitFn(p, depth, blk)
+		if err := blk.visitAll(p, depth+1, visitFn); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (b Block) visitAllFile(reason string, bytes trustlessutils.ByteRange, depth int, visitFn func(reason string, depth int, b Block)) error {
+func (b Block) visitAllFile(p datamodel.Path, bytes trustlessutils.ByteRange, depth int, visitFn func(p datamodel.Path, depth int, b Block)) error {
 	from := bytes.From
 	var to int64 = math.MaxInt64
 	if bytes.To != nil {
@@ -136,7 +133,7 @@ func (b Block) visitAllFile(reason string, bytes trustlessutils.ByteRange, depth
 			if err != nil {
 				return err
 			}
-			visitFn(reason, depth, blk)
+			visitFn(p, depth, blk)
 			if err := visit(blk, depth+1); err != nil {
 				return err
 			}
@@ -146,9 +143,9 @@ func (b Block) visitAllFile(reason string, bytes trustlessutils.ByteRange, depth
 	return visit(b, depth)
 }
 
-func (b Block) visitAllEntity(reason string, bytes trustlessutils.ByteRange, depth int, visitFn func(reason string, depth int, b Block)) error {
+func (b Block) visitAllEntity(p datamodel.Path, bytes trustlessutils.ByteRange, depth int, visitFn func(p datamodel.Path, depth int, b Block)) error {
 	if b.DataType == data.Data_File {
-		return b.visitAllFile(reason, bytes, depth, visitFn)
+		return b.visitAllFile(p, bytes, depth, visitFn)
 	}
 
 	for _, child := range b.Children {
@@ -156,19 +153,20 @@ func (b Block) visitAllEntity(reason string, bytes trustlessutils.ByteRange, dep
 		if err != nil {
 			return err
 		}
-		if "/"+blk.UnixfsPath.Last().String() != reason {
+		if blk.UnixfsPath.Last() != p.Last() {
 			continue
 		}
-		visitFn(reason, depth, blk)
-		blk.visitAllEntity(reason, bytes, depth+1, visitFn)
+		visitFn(p, depth, blk)
+		blk.visitAllEntity(p, bytes, depth+1, visitFn)
 	}
 	return nil
 }
 
-func (b Block) findInHamt(key string, depth int, visitFn func(reason string, depth int, b Block)) (Block, int, bool, error) {
+func (b Block) findInHamt(p datamodel.Path, depth int, visitFn func(p datamodel.Path, depth int, b Block)) (Block, int, bool, error) {
 	if b.Arity <= 0 {
 		return Block{}, 0, false, errors.New("no fanout (arity) for hamt node")
 	}
+	key := p.Last().String()
 	hv := &unixfs.HashBits{Bits: unixfs.Hash([]byte(key))}
 	log2 := bits.TrailingZeros(uint(b.Arity))
 	node := b
@@ -201,7 +199,7 @@ func (b Block) findInHamt(key string, depth int, visitFn func(reason string, dep
 			return Block{}, 0, false, err
 		}
 		if blk.UnixfsPath.String() == b.UnixfsPath.String() && blk.DataType == data.Data_HAMTShard {
-			visitFn("<hamt>", depth, blk)
+			visitFn(p.Pop(), depth, blk)
 			node = blk
 			depth++
 		} else if child.UnixfsPath.Last().String() == key {

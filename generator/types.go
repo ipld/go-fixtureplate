@@ -22,6 +22,7 @@ var _ Entity = File{}
 var _ Entity = Directory{}
 
 type File struct {
+	Name             string
 	Size             uint64
 	RandomSize       bool
 	ZeroContent      bool
@@ -108,6 +109,8 @@ const (
 
 type Directory struct {
 	Type             DirType
+	ShardBitwidth    int
+	Name             string
 	Multiplier       int
 	RandomMultiplier bool
 	Children         []Entity
@@ -173,7 +176,7 @@ func (d Directory) Describe(indent string) string {
 func (d Directory) Generate(lsys linking.LinkSystem, rand *rand.Rand) (unixfstestutil.DirEntry, error) {
 	var sbw int
 	if d.Type == DirType_Sharded {
-		sbw = 4
+		sbw = d.ShardBitwidth
 	}
 	children := make([]Entity, 0)
 	for _, child := range d.Children {

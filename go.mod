@@ -16,6 +16,7 @@ require (
 	github.com/ipld/go-ipld-prime v0.21.0
 	github.com/ipld/go-trustless-utils v0.3.0
 	github.com/spaolacci/murmur3 v1.1.0
+	github.com/test-go/testify v1.1.4
 	github.com/urfave/cli/v2 v2.25.7
 )
 

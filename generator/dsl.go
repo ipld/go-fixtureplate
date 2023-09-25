@@ -108,11 +108,12 @@ func (p *parser) parseFile(multiplier int, rnd bool) (Entity, error) {
 	if err != nil {
 		return nil, err
 	}
-	zero, err := p.slurpFileOptions()
+	name, zero, err := p.slurpFileOptions()
 	if err != nil {
 		return nil, err
 	}
 	return File{
+		Name:             name,
 		Multiplier:       multiplier,
 		RandomMultiplier: rnd,
 		Size:             size,
@@ -122,15 +123,21 @@ func (p *parser) parseFile(multiplier int, rnd bool) (Entity, error) {
 }
 
 func (p *parser) parseDir(multiplier int, rnd bool) (Entity, error) {
-	typ, err := p.slurpDirOptions()
+	name, shardBitwidth, err := p.slurpDirOptions()
 	if err != nil {
 		return nil, err
 	}
 	if err := p.slurpOpen(); err != nil {
 		return nil, err
 	}
+	typ := DirType_Plain
+	if shardBitwidth > 0 {
+		typ = DirType_Sharded
+	}
 	dir := Directory{
 		Type:             typ,
+		Name:             name,
+		ShardBitwidth:    shardBitwidth,
 		Multiplier:       multiplier,
 		RandomMultiplier: rnd,
 		Children:         []Entity{},
@@ -154,65 +161,186 @@ func (p *parser) parseDir(multiplier int, rnd bool) (Entity, error) {
 }
 
 // slurpFileOptions looks for an optional {} block which may optionally contain
-// "zero"
-func (p *parser) slurpFileOptions() (bool, error) {
+// `zero` and `name:"foo"`, comma separated. Returns name adn zero.
+func (p *parser) slurpFileOptions() (name string, zero bool, err error) {
 	if !p.hasMore() {
-		return false, nil
+		return "", false, nil
 	}
 	if ok, err := p.nextChar('{'); err != nil {
-		return false, err
+		return "", false, err
 	} else if !ok {
-		return false, nil
+		return "", false, nil
 	}
 	p.pos++
 	if !p.hasMore() {
-		return false, p.newParseError("unexpected end")
+		return "", false, p.newParseError("unexpected end")
 	}
-	var zero bool
-	if strings.HasPrefix(p.str[p.pos:], "zero") {
-		p.pos += 4
-		zero = true
+	var vc int
+	for p.hasMore() {
+		if ok, err := p.nextChar('}'); err != nil {
+			return "", false, err
+		} else if ok {
+			p.pos++
+			break
+		}
+		if vc > 0 {
+			if ok, err := p.nextChar(','); err != nil {
+				return "", false, err
+			} else if !ok {
+				return "", false, p.newParseError("expected ','")
+			}
+			p.pos++
+		}
+		if strings.HasPrefix(p.str[p.pos:], "zero") {
+			p.pos += 4
+			zero = true
+			vc++
+			continue
+		}
+		// look for name:"foobar"
+		if strings.HasPrefix(p.str[p.pos:], "name") {
+			p.pos += 4
+			if ok, err := p.nextChar(':'); err != nil {
+				return "", false, err
+			} else if !ok {
+				return "", false, p.newParseError("expected ':'")
+			}
+			p.pos++
+			if name, err = p.slurpQuotedString(); err != nil {
+				return "", false, err
+			}
+			vc++
+			continue
+		}
+		return "", false, p.newParseError("expected 'zero' or 'name'")
 	}
-	if ok, err := p.nextChar('}'); err != nil {
-		return false, err
+	return name, zero, nil
+}
+
+// slurpQuotedString looks for a quoted string, which is always required
+func (p *parser) slurpQuotedString() (string, error) {
+	if !p.hasMore() {
+		return "", p.newParseError("unexpected end")
+	}
+	if ok, err := p.nextChar('"'); err != nil {
+		return "", err
 	} else if !ok {
-		return false, p.newParseError("expected '}'")
+		return "", p.newParseError("expected '\"'")
 	}
 	p.pos++
-	return zero, nil
+	iend := p.pos
+	for _, r := range p.str[p.pos:] {
+		if r == '"' {
+			break
+		}
+		iend++
+	}
+	if iend == p.pos {
+		return "", p.newParseError("expected name")
+	}
+	name := p.str[p.pos:iend]
+	p.pos = iend
+	if ok, err := p.nextChar('"'); err != nil {
+		return "", err
+	} else if !ok {
+		return "", p.newParseError("expected '\"'")
+	}
+	p.pos++
+	return name, nil
 }
 
 // slurpDirOptions looks for an optional {} block which may optionally contain
-// "sharded" or "plain"
-func (p *parser) slurpDirOptions() (DirType, error) {
-	var typ DirType = DirType_Plain
-
+// `name:"foo"`, or `sharded:X`, or just `sharded`, comma separated. Returns
+// name and shardBitwidth. If neither are supplied, zero values are substituted.
+// If `sharded` is supplied without bitwidth, the default of `4` is used.
+func (p *parser) slurpDirOptions() (name string, shardBitwidth int, err error) {
 	if !p.hasMore() {
-		return typ, nil
+		return "", 0, nil
 	}
 	if ok, err := p.nextChar('{'); err != nil {
-		return typ, err
+		return "", 0, err
 	} else if !ok {
-		return typ, nil
+		return "", 0, nil
 	}
 	p.pos++
 	if !p.hasMore() {
-		return typ, p.newParseError("unexpected end")
+		return "", 0, p.newParseError("unexpected end")
 	}
-	if strings.HasPrefix(p.str[p.pos:], "sharded") {
-		p.pos += 7
-		typ = DirType_Sharded
-	} else if strings.HasPrefix(p.str[p.pos:], "plain") {
-		p.pos += 5
-		typ = DirType_Plain
+	var vc int
+	for p.hasMore() {
+		if ok, err := p.nextChar('}'); err != nil {
+			return "", 0, err
+		} else if ok {
+			p.pos++
+			break
+		}
+		if vc > 0 {
+			if ok, err := p.nextChar(','); err != nil {
+				return "", 0, err
+			} else if !ok {
+				return "", 0, p.newParseError("expected ','")
+			}
+			p.pos++
+		}
+		if strings.HasPrefix(p.str[p.pos:], "sharded") {
+			p.pos += 7
+			shardBitwidth = 4
+			if ok, err := p.nextChar(':'); err != nil {
+				return "", 0, err
+			} else if ok { // optional bitwidth specified
+				p.pos++
+				// extract the number
+				var ok bool
+				if shardBitwidth, ok, err = p.slurpInteger(); err != nil {
+					return "", 0, err
+				} else if !ok {
+					return "", 0, p.newParseError("expected integer")
+				} else if shardBitwidth <= 0 {
+					return "", 0, p.newParseError("expected integer > 0")
+				}
+			}
+			vc++
+			continue
+		}
+		if strings.HasPrefix(p.str[p.pos:], "name") {
+			p.pos += 4
+			if ok, err := p.nextChar(':'); err != nil {
+				return "", 0, err
+			} else if !ok {
+				return "", 0, p.newParseError("expected ':'")
+			}
+			p.pos++
+			if name, err = p.slurpQuotedString(); err != nil {
+				return "", 0, err
+			}
+			vc++
+			continue
+		}
+		return "", 0, p.newParseError("expected 'sharded' or 'name'")
 	}
-	if ok, err := p.nextChar('}'); err != nil {
-		return typ, err
-	} else if !ok {
-		return typ, p.newParseError("expected '}'")
+	return name, shardBitwidth, nil
+}
+
+// slurpInteger parses an integer, if one exists, return the integer and true
+// if one exists, false otherwise
+func (p *parser) slurpInteger() (int, bool, error) {
+	// figure out where the integers end, then parse the integer
+	iend := p.pos
+	for _, r := range p.str[p.pos:] {
+		if r < '0' || r > '9' {
+			break
+		}
+		iend++
 	}
-	p.pos++
-	return typ, nil
+	if iend == p.pos {
+		return 0, false, nil
+	}
+	ii, err := strconv.Atoi(p.str[p.pos:iend])
+	if err != nil {
+		return 0, false, p.newParseError("expected integer")
+	}
+	p.pos = iend
+	return ii, true, nil
 }
 
 // slurpSize looks for a ':' followed by a human readable byte size, we'll use
@@ -235,7 +363,7 @@ func (p *parser) slurpSize() (uint64, bool, error) {
 	iend := p.pos
 	// find the number portion
 	for _, r := range p.str[p.pos:] {
-		if !(unicode.IsDigit(r) || r == '.' || r == ',') {
+		if !(unicode.IsDigit(r) || r == '.') {
 			break
 		}
 		iend++
@@ -319,27 +447,15 @@ func (p *parser) slurpRandom() (bool, error) {
 
 // slurpMultiplier looks for an int multiplier, which is always optional but if
 // present must be > 0 and must be followed by '*'
-func (p *parser) slurpMultiplier() (int, error) {
-	// figure out where the integers end, then parse the integer
-	// if there's no integer, return 1
-	iend := p.pos
-	for _, r := range p.str[p.pos:] {
-		if r < '0' || r > '9' {
-			break
-		}
-		iend++
-	}
-	if iend == p.pos {
+func (p *parser) slurpMultiplier() (multiplier int, err error) {
+	var ok bool
+	if multiplier, ok, err = p.slurpInteger(); err != nil {
+		return 0, err
+	} else if !ok {
 		return 1, nil
-	}
-	multiplier, err := strconv.Atoi(p.str[p.pos:iend])
-	if err != nil {
-		return 0, p.newParseError("expected integer")
-	}
-	if multiplier < 0 {
+	} else if multiplier < 0 {
 		return 0, p.newParseError("expected integer >= 0")
 	}
-	p.pos = iend
 	if ok, err := p.nextChar('*'); err != nil {
 		return 0, err
 	} else if !ok {

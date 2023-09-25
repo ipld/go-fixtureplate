@@ -40,15 +40,17 @@ outer:
 						return err
 					}
 					depth++
+					fmt.Println("Data_Directory visitFn", progress.String())
 					visitFn(progress, depth, blk)
+					curr = blk
 					if scope == trustlessutils.DagScopeEntity && path.Len() == 0 {
 						break outer
 					}
-					curr = blk
 					continue outer
 				}
 			}
 		case data.Data_HAMTShard:
+			fmt.Println("Descend into hamt", progress.String())
 			child, _depth, found, err := curr.findInHamt(progress, depth+1, visitFn)
 			if err != nil {
 				return err
@@ -57,6 +59,7 @@ outer:
 				return errors.New("not found in HAMT")
 			}
 			depth = _depth
+			fmt.Println("Data_HAMTShard visitFn", progress.String())
 			visitFn(progress, depth, child)
 			if scope == trustlessutils.DagScopeEntity && path.Len() == 0 {
 				break outer
@@ -74,9 +77,11 @@ outer:
 	case trustlessutils.DagScopeBlock:
 		return nil
 	case trustlessutils.DagScopeEntity:
+		fmt.Println("DagScopeEntity visitAllEntity visitFn", progress.String())
 		return curr.visitAllEntity(progress, bytes, depth+1, visitFn)
 	}
 
+	fmt.Println("end of Navigate visitAll", progress.String())
 	return curr.visitAll(progress, depth+1, visitFn)
 }
 

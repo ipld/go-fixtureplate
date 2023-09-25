@@ -192,6 +192,22 @@ func TestParsing(t *testing.T) {
 			input: `dir(~1*file:1kib{name:"boop"})`,
 			err:   "can't name a file with a multiplier",
 		},
+		{
+			input: `dir(~5*file:1.0kB,~5*file:~102kB,2*dir{sharded}(~10*file:51kB),file:1.0MB{zero},file:10B,file:20B)`,
+			expected: Directory{
+				Multiplier: 1,
+				Type:       DirType_Plain,
+				Children: []Entity{
+					File{Multiplier: 5, RandomMultiplier: true, Size: 1000},
+					File{Multiplier: 5, RandomMultiplier: true, Size: 102000, RandomSize: true},
+					Directory{Multiplier: 2, Type: DirType_Sharded, ShardBitwidth: 4, Children: []Entity{File{Multiplier: 10, RandomMultiplier: true, Size: 51000}}},
+					File{Multiplier: 1, Size: 1000000, ZeroContent: true},
+					File{Multiplier: 1, Size: 10},
+					File{Multiplier: 1, Size: 20},
+				},
+			},
+			explained: "A directory containing:\n  → Approximately 5 files of 1.0 kB\n  → Approximately 5 files of approximately 102 kB\n  → 2 directories sharded with bitwidth 4 containing:\n    → Approximately 10 files of 51 kB\n  → A file of 1.0 MB containing just zeros\n  → A file of 10 B\n  → A file of 20 B",
+		},
 	}
 
 	for _, tc := range testCases {

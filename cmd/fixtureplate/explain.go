@@ -34,18 +34,21 @@ var explainCommand = &cli.Command{
 		},
 		&cli.StringFlag{
 			Name:        "scope",
+			Aliases:     []string{"dag-scope"},
 			DefaultText: "all",
 			Usage:       "Scope of the query, one of: all, entity, block",
 		},
 		&cli.StringFlag{
-			Name:  "bytes",
-			Value: "",
+			Name:    "bytes",
+			Aliases: []string{"entity-bytes"},
+			Value:   "",
 			Usage: "Byte range of the terminating entity if that entity is a" +
 				" sharded file of the form `from:to`, where * is a valid `to`" +
 				" value and negative `to` values are also valid",
 		},
 		&cli.BoolFlag{
 			Name:        "duplicates",
+			Aliases:     []string{"dups"},
 			DefaultText: "true",
 			Usage:       "Include duplicate blocks in the output",
 		},

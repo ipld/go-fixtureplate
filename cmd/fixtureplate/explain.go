@@ -18,8 +18,8 @@ import (
 	cli "github.com/urfave/cli/v2"
 )
 
-var executeCommand = &cli.Command{
-	Name: "execute",
+var explainCommand = &cli.Command{
+	Name: "explain",
 	Usage: "Execute a trustless query across a DAG inside a CAR file and show" +
 		" the block traversal details",
 	Flags: []cli.Flag{
@@ -63,10 +63,10 @@ var executeCommand = &cli.Command{
 				" in the Accept header)",
 		},
 	},
-	Action: executeAction,
+	Action: explainAction,
 }
 
-func executeAction(c *cli.Context) error {
+func explainAction(c *cli.Context) error {
 	if !c.IsSet("car") {
 		return fmt.Errorf("no CAR file specified")
 	}

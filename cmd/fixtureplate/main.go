@@ -14,7 +14,7 @@ func main() {
 		Name:  "fixtureplate",
 		Usage: "Work with, and inspect IPLD DAGs",
 		Commands: []*cli.Command{
-			executeCommand,
+			explainCommand,
 			generateCommand,
 		},
 	}

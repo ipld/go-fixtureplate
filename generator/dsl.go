@@ -112,6 +112,9 @@ func (p *parser) parseFile(multiplier int, rnd bool) (Entity, error) {
 	if err != nil {
 		return nil, err
 	}
+	if name != "" && (multiplier > 1 || rnd) {
+		return nil, p.newParseError("can't name a file with a multiplier")
+	}
 	return File{
 		Name:             name,
 		Multiplier:       multiplier,
@@ -126,6 +129,9 @@ func (p *parser) parseDir(multiplier int, rnd bool) (Entity, error) {
 	name, shardBitwidth, err := p.slurpDirOptions()
 	if err != nil {
 		return nil, err
+	}
+	if name != "" && (multiplier > 1 || rnd) {
+		return nil, p.newParseError("can't name a directory with a multiplier")
 	}
 	if err := p.slurpOpen(); err != nil {
 		return nil, err

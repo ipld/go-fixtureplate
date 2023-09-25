@@ -69,11 +69,20 @@ func (f File) Describe(indent string) string {
 	if f.Multiplier > 1 {
 		sb.WriteRune('s')
 	}
+	if f.Name != "" {
+		sb.WriteString(` named "`)
+		sb.WriteString(f.Name)
+		sb.WriteRune('"')
+	}
 	sb.WriteString(" of ")
 	if f.RandomSize {
 		sb.WriteString("approximately ")
 	}
-	sb.WriteString(humanize.Bytes(uint64(f.Size)))
+	if f.Size%1024 == 0 {
+		sb.WriteString(humanize.IBytes(uint64(f.Size)))
+	} else {
+		sb.WriteString(humanize.Bytes(uint64(f.Size)))
+	}
 	if f.ZeroContent {
 		sb.WriteString(" containing just zeros")
 	}
@@ -125,10 +134,9 @@ func (d Directory) String() string {
 		sb.WriteString(fmt.Sprintf("%d*", d.Multiplier))
 	}
 	sb.WriteString("dir")
-	if d.Type != DirType_Plain {
-		sb.WriteRune('{')
-		sb.WriteString(string(d.Type))
-		sb.WriteRune('}')
+	switch d.Type {
+	case DirType_Sharded:
+		sb.WriteString(fmt.Sprintf("{sharded:%d}", d.ShardBitwidth))
 	}
 	sb.WriteRune('(')
 	for i, c := range d.Children {
@@ -157,13 +165,19 @@ func (d Directory) Describe(indent string) string {
 			sb.WriteString("A")
 		}
 	}
-	if d.Type != DirType_Plain {
-		sb.WriteRune(' ')
-		sb.WriteString(string(d.Type))
-	}
-	sb.WriteString(" directory")
 	if d.Multiplier > 1 {
-		sb.WriteRune('s')
+		sb.WriteString(" directories")
+	} else {
+		sb.WriteString(" directory")
+	}
+	if d.Name != "" {
+		sb.WriteString(` named "`)
+		sb.WriteString(d.Name)
+		sb.WriteRune('"')
+	}
+	switch d.Type {
+	case DirType_Sharded:
+		sb.WriteString(fmt.Sprintf(" sharded with bitwidth %d", d.ShardBitwidth))
 	}
 	sb.WriteString(" containing:")
 	for _, c := range d.Children {

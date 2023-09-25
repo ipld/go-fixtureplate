@@ -19,8 +19,9 @@ var explainCommand = &cli.Command{
 		" the block traversal details",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
-			Name:  "car",
-			Usage: "CAR file to read from",
+			Name:     "car",
+			Usage:    "CAR file to read from",
+			Required: true,
 		},
 		&cli.StringFlag{
 			Name:        "path",

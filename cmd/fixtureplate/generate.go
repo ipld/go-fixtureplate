@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"math/rand"
 	"os"
@@ -25,15 +24,20 @@ var generateCommand = &cli.Command{
 			Usage: "Seed for the random number generator",
 		},
 	},
-	Action: generateAction,
+	ArgsUsage: "<spec>",
+	Action:    generateAction,
 }
 
 func generateAction(c *cli.Context) error {
-	descriptor := c.Args().First()
-	if descriptor == "" {
-		return errors.New("no descriptor provided")
+	spec := c.Args().First()
+	if spec == "" {
+		// "help" becomes a subcommand, clear it to deal with a urfave/cli bug
+		// Ref: https://github.com/urfave/cli/blob/v2.25.7/help.go#L253-L255
+		c.Command.Subcommands = nil
+		cli.ShowCommandHelpAndExit(c, "generate", 0)
+		return nil
 	}
-	entity, err := generator.Parse(descriptor)
+	entity, err := generator.Parse(spec)
 	if err != nil {
 		if err, ok := err.(generator.ErrParse); ok {
 			// move in enough spaces to point to err.Pos on the line above

@@ -2,11 +2,23 @@
 
 **Tools to generate and inspect IPLD data to assist in testing.**
 
+* [Example](#example)
+  * [Generate some UnixFS data](#generate-some-unixfs-data)
+  * [Explain a CAR file](#explain-a-car-file)
+  * [Explain a specific path through the CAR file](#explain-a-specific-path-through-the-car-file)
+  * [Use IPFS Trustless Gateway style queries](#use-ipfs-trustless-gateway-style-queries)
+* [Installation](#installation)
+* [CLI Usage](#cli-usage)
+  * [`explain`](#explain)
+  * [`generate`](#generate)
+* [Generate spec DSL](#generate-spec-dsl)
+* [License](#license)
+
 ## Example
 
 ### Generate some UnixFS data
 
-```
+```console
 $ fixtureplate generate \
   'dir(~5*file:1.0kB,~5*file:~102kB,2*dir{sharded}(~10*file:51kB),file:1.0MB{zero},file:10B,file:20B)'
 ```
@@ -27,7 +39,7 @@ A directory containing:
 
 ### Explain a CAR file
 
-```
+```console
 $ fixtureplate explain \
   --car bafybeia7igckzgzxeyh5acp2l4etsa3rk2hf533nlwgeggxx4xsjjnxdwi.car
 ```
@@ -75,7 +87,7 @@ bafkreiaukjbwfe7nbfuabgkh3hy2eahptmlujxhesyb67cywddbvw4nwea | RawLeaf   |   /ŵ�
 
 ### Explain a specific path through the CAR file
 
-```
+```console
 $ fixtureplate explain \
   --car bafybeia7igckzgzxeyh5acp2l4etsa3rk2hf533nlwgeggxx4xsjjnxdwi.car \
   --path /eorþscūa/Guildenstern
@@ -88,9 +100,9 @@ bafybeidyhi62ammifxk2mtcqdt5hr3d2a2ikoo7nsfbfvohli2njluk7ya | HAMTShard | ↳ /e
 bafkreibssfqg3gf6k5zr4kgc2y64rcilfl3lcuv2brupd3qwhk7bermjra | RawLeaf   |   ↳ /eorþscūa/Guildenstern [0:50999] (51,000 B)
 ```
 
-### Use [Trustless Gateway] style queries
+### Use IPFS Trustless Gateway style queries
 
-```
+```console
 $ fixtureplate explain \
   --car bafybeia7igckzgzxeyh5acp2l4etsa3rk2hf533nlwgeggxx4xsjjnxdwi.car \
   --query '/ipfs/bafybeia7igckzgzxeyh5acp2l4etsa3rk2hf533nlwgeggxx4xsjjnxdwi/hēahgerefa?dag-scope=entity&entity-bytes=550000:-200000'
@@ -107,9 +119,157 @@ bafkreibzz7ccqrjibdd6ew2iqdyccc4hprasqy22rrkgdgmtt7pxhd7way | RawLeaf   |       
 
 ## Installation
 
-```
-go get github.com/ipld/go-fixtureplate
+To install the latest version of go-fixtureplate, run:
+
+```console
+$ go install github.com/ipld/go-fixtureplate/cmd/go-fixtureplate@latest
 ```
 
-## Usage
+Binaries are directly available for download on the [releases page](https://github.com/ipld/go-fixtureplate/releases).
 
+Alternatively, use go-fixtureplate as a library in your application by importing [`github.com/ipld/go-fixtureplate`](https://pkg.go.dev/github.com/ipld/go-fixtureplate).
+
+## CLI Usage
+
+### `explain`
+
+Explain the IPLD contents and paths in a CAR file.
+
+```console
+$ fixtureplate explain --car=<car> \
+  [--path=<path>] \
+  [--scope=<scope>] \
+  [--bytes=<byte range>] \
+  [--duplicates] \
+  [--full-path=false] \
+  [--ignore-missing]
+```
+
+Or
+
+```console
+$ fixtureplate explain --car=<car> --query=<query> [--full-path=false] [--ignore-missing]
+```
+
+Where:
+
+* `--car` specifies the path to a CAR file to inspect.
+* `--query` specifies an [IPFS Trustless Gateway](https://specs.ipfs.tech/http-gateways/trustless-gateway/) style query to execute. e.g. `/ipfs/<cid>/<path>?dag-scope=<scope>&entity-bytes=<byte range>`. See [the specification](https://specs.ipfs.tech/http-gateways/trustless-gateway/) for full details. Note though that the query here also includes some elements not normally provided on the query string, such as the `dups=y|n` which is normally in the `Accept` header.
+* `--path` (default: `/`) specifies a path through the DAG to follow. If not specified, an implicit path of `/` will be used, which will traverse and explain the entire DAG. This would be equivalent to `--query=/ipfs/<cid>?dag-scope=all`.
+* `--scope` (or `--dag-scope`, default: `all`) specifies the scope of the traversal at the terminus of the PATH. See the [IPFS Trustless Gateway](https://specs.ipfs.tech/http-gateways/trustless-gateway/) specification for full details. If not specified, the default scope is `all`. Options include `block`, to halt at the block, and `entity` to halt at the block _or_ sharded entity (directory or file) at the terminus of the path.
+* `--bytes` (or `--entity-bytes`) specifies the byte range of the entity to return. See the [IPFS Trustless Gateway](https://specs.ipfs.tech/http-gateways/trustless-gateway/) specification for full details. If not specified, the default is to return the entire entity. Supplying a byte range will implicitly set the scope to `entity`.
+* `--duplicates` (or `--dups`, default: `true`) specifies whether to include duplicate blocks in the output. If not specified, the default is to include duplicates.
+*  `--full-path` (default: `true`) specifies whether to include the full path in the output. If not specified, the default is to include the full path.
+*  `--ignore-missing` (default: `false`) specifies whether to ignore missing blocks. If not specified, the default is to error on missing blocks. Turning this on may be useful to explain partial CAR files, such as those downloaded via the IPFS Trustless Gateway using a path, or scope other than `all`.
+
+### `generate`
+
+Generate IPLD data according to a simple DSL that describes the structure of UnixFS file / directory trees.
+
+```console
+$ fixtureplate generate [--seed=<seed>] <spec>
+```
+
+Where:
+
+* `--seed` specifies a random seed to use for generating the data. If not specified, a random seed will be `0` which should lead to reproducible results.
+* `<spec>` is a UnixFS directory structure specification. See [the specification](#generate-spec-dsl) for full details.
+
+`generate` will construct a UnixFS structure in IPLD blocks and output a CAR file containing the data. The CAR will be properly ordered, have the correct root and the name will be `{root cid}.car`. A textual description of the spec will also be printed to stdout in order to clarify what the request was.
+
+## Generate spec DSL
+
+The generate `<spec>` DSL is a simple way to describe a UnixFS directory structure. It is a string that describes a directory structure, with some additional modifiers to control the size and content of the blocks in the DAG. It is intended to be used via the CLI with the `generate` command, but can also be used via the `github.com/ipld/go-fixtureplate/generator` package programmatically to generate UnixFS data for testing purposes.
+
+The basic DSL uses `file:size` and `dir(...)` to describe a directory structure. For example:
+
+```
+dir(file:100B,file:200B)
+```
+
+Describes a directory containing two files, one of 100 bytes and one of 200 bytes.
+
+The simplest form is a single file. The `file` descriptor _must_ also have an accompanying size after a `:` character. e.g. `file:200KiB`. Once this file is beyond the size of the default chunker used (splitting at 256,144 bytes), it will yield a multi-block sharded file. Otherwise it will be a single block file.
+
+A directory can contain one or more files, which should be comma separated. The simplest directory has a single file. The `dir` descriptor _must_ be followed by a `(...)` containing the files in the directory.
+
+Directories can also be nested, and inteleaved with files. For example:
+
+```
+dir(file:100B,dir(file:200B,file:300B),file:400B)
+```
+
+Describes a directory containing two files, one of 100 bytes, one of 400 bytes, and one sub-directory containing two files, one of 200 bytes and one of 300 bytes.
+
+File sizes can also be described as **approximate** using the `~` prefix to the size specifier. This inserts some randomness around a target size. For example: `file:~100B` will generate a file of *approximately* 100 bytes. The actual size will be roughly between 90% and 110% of the target size. This is useful for generating data that is not exactly the same size every time, but is still within a reasonable range.
+
+Both files and directories can have **multipliers**. By prefixing `file` or `dir` with `N*` where `N` is a number, the file or directory will be repeated `N` times. For example:
+
+```
+dir(5*file:~100B)
+```
+
+Describes a directory containing 5 files of approximately 100 bytes each.
+
+Multipliers can also be **approximate** in the same was as file sizes by using `~N*`. For example:
+
+```
+dir(~5*file:~100B,~5*dir(~10*file:50B))
+```
+
+Describes a directory containing approximately 5 files of approximately 100 bytes each, and approximately 5 directories each containing approximately 10 files of exactly 50 bytes each.
+
+Directories can also be **sharded**. This is done by adding `{sharded}` after the directory descriptor. For example:
+
+```
+dir{sharded}(~100*file:~100B)
+```
+
+Describes a directory containing approximately 100 files of approximately 100 bytes each, sharded with a default bitwidth of `4`. The normal bitwidth of a UnixFS sharded directory in production is `8`, which yields a fan-out of up to 256 children of each node. Using a bitwidth of `4` yields a fan-out of 16. This is useful for testing purposes as you can generate more collisions and deeper trees using a smaller number of children in the directory.
+
+Alternative bitwidths can be specified by adding a number after `sharded`, as in `{sharded:N}`. For example:
+
+```
+dir{sharded:8}(~100*file:~100B)
+```
+
+Describes a directory containing approximately 100 files of approximately 100 bytes each, sharded with a bitwidth of `8`.
+
+Files can be **zeroed** by adding `{zero}` after the file descriptor. This will generate a file of the specified size, but with all bytes set to zero. This is primarily useful in generating **duplicate blocks** in your DAG. A file spanning many blocks with all-zeros will generate duplicate blocks for that file, and multiple files in a DAG with zeros will generate duplicate blocks across multiple files. For example:
+
+```
+dir(100*file:1MB{zero})
+```
+
+Describes a directory containing approximately 100 files of exactly 1MB each, all of which are zeroed. This will generate a DAG with many duplicate blocks. In practice, with the current defaults of `generate`, this will generate a **5** block DAG, where one of those blocks is used **497** times.
+
+Files and directories can be **named** by adding a `{name:"..."}` after the `file` or `dir` descriptor. Multiples cannot be named, and collisions are the responsibility of the user. A mixture of named and non-named files will result in random names being assigned along with the fixed ones. Caution should be applied. For example:
+
+```
+dir(dir{name:"boop"}(file:100B{name:"foo"},file:200B{name:"bar"}))
+```
+
+Describes a directory containing a directory named `boop` containing two files, one named `foo` and one named `bar`.
+
+When using the `generate` CLI command, a long-form textual description of the spec will be printed to stdout in order to clarify what the request was. For example:
+
+```
+dir(~5*file:1.0kB,~5*file:~102kB,2*dir{sharded}(~10*file:51kB),file:1.0MB{zero},file:10B,file:20B)
+```
+
+Is described as:
+
+```
+A directory containing:
+  → Approximately 5 files of 1.0 kB
+  → Approximately 5 files of approximately 102 kB
+  → 2 directories sharded with bitwidth 4 containing:
+    → Approximately 10 files of 51 kB
+  → A file of 1.0 MB containing just zeros
+  → A file of 10 B
+  → A file of 20 B
+```
+
+## License
+
+Apache-2.0/MIT © Protocol Labs

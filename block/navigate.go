@@ -21,6 +21,7 @@ func (b Block) Navigate(
 	path datamodel.Path,
 	scope trustlessutils.DagScope,
 	bytes trustlessutils.ByteRange,
+	ignoreMissing bool,
 	visitFn func(p datamodel.Path, depth int, b Block),
 ) error {
 	visitFn(datamodel.Path{}, 0, b)
@@ -40,8 +41,10 @@ outer:
 			for _, child := range curr.Children {
 				if child.UnixfsPath.String() == progress.String() {
 					blk, err := child.Block()
-					if err != nil {
+					if fatalErr(ignoreMissing, err) {
 						return err
+					} else if err != nil {
+						continue
 					}
 					depth++
 					visitFn(progress, depth, blk)
@@ -53,7 +56,7 @@ outer:
 				}
 			}
 		case data.Data_HAMTShard:
-			child, _depth, found, err := curr.findInHamt(progress, depth+1, visitFn)
+			child, _depth, found, err := curr.findInHamt(progress, depth+1, ignoreMissing, visitFn)
 			if err != nil {
 				return err
 			}
@@ -78,27 +81,29 @@ outer:
 	case trustlessutils.DagScopeBlock:
 		return nil
 	case trustlessutils.DagScopeEntity:
-		return curr.visitAllEntity(progress, bytes, depth+1, visitFn)
+		return curr.visitAllEntity(progress, bytes, depth+1, ignoreMissing, visitFn)
 	}
 
-	return curr.visitAll(progress, depth+1, visitFn)
+	return curr.visitAll(progress, depth+1, ignoreMissing, visitFn)
 }
 
-func (b Block) visitAll(p datamodel.Path, depth int, visitFn func(p datamodel.Path, depth int, b Block)) error {
+func (b Block) visitAll(p datamodel.Path, depth int, ignoreMissing bool, visitFn func(p datamodel.Path, depth int, b Block)) error {
 	for _, child := range b.Children {
 		blk, err := child.Block()
-		if err != nil {
+		if fatalErr(ignoreMissing, err) {
 			return err
+		} else if err != nil {
+			continue
 		}
 		visitFn(p, depth, blk)
-		if err := blk.visitAll(p, depth+1, visitFn); err != nil {
+		if err := blk.visitAll(p, depth+1, ignoreMissing, visitFn); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (b Block) visitAllFile(p datamodel.Path, bytes trustlessutils.ByteRange, depth int, visitFn func(p datamodel.Path, depth int, b Block)) error {
+func (b Block) visitAllFile(p datamodel.Path, bytes trustlessutils.ByteRange, depth int, ignoreMissing bool, visitFn func(p datamodel.Path, depth int, b Block)) error {
 	from := bytes.From
 	var to int64 = math.MaxInt64
 	if bytes.To != nil {
@@ -137,8 +142,10 @@ func (b Block) visitAllFile(p datamodel.Path, bytes trustlessutils.ByteRange, de
 				continue
 			}
 			blk, err := child.Block()
-			if err != nil {
+			if fatalErr(ignoreMissing, err) {
 				return err
+			} else if err != nil {
+				continue
 			}
 			visitFn(p, depth, blk)
 			if err := visit(blk, depth+1); err != nil {
@@ -150,26 +157,28 @@ func (b Block) visitAllFile(p datamodel.Path, bytes trustlessutils.ByteRange, de
 	return visit(b, depth)
 }
 
-func (b Block) visitAllEntity(p datamodel.Path, bytes trustlessutils.ByteRange, depth int, visitFn func(p datamodel.Path, depth int, b Block)) error {
+func (b Block) visitAllEntity(p datamodel.Path, bytes trustlessutils.ByteRange, depth int, ignoreMissing bool, visitFn func(p datamodel.Path, depth int, b Block)) error {
 	if b.DataType == data.Data_File {
-		return b.visitAllFile(p, bytes, depth, visitFn)
+		return b.visitAllFile(p, bytes, depth, ignoreMissing, visitFn)
 	}
 
 	for _, child := range b.Children {
 		blk, err := child.Block()
-		if err != nil {
+		if fatalErr(ignoreMissing, err) {
 			return err
+		} else if err != nil {
+			continue
 		}
 		if blk.UnixfsPath.Last() != p.Last() {
 			continue
 		}
 		visitFn(p, depth, blk)
-		blk.visitAllEntity(p, bytes, depth+1, visitFn)
+		blk.visitAllEntity(p, bytes, depth+1, ignoreMissing, visitFn)
 	}
 	return nil
 }
 
-func (b Block) findInHamt(p datamodel.Path, depth int, visitFn func(p datamodel.Path, depth int, b Block)) (Block, int, bool, error) {
+func (b Block) findInHamt(p datamodel.Path, depth int, ignoreMissing bool, visitFn func(p datamodel.Path, depth int, b Block)) (Block, int, bool, error) {
 	if b.Arity <= 0 {
 		return Block{}, 0, false, errors.New("no fanout (arity) for hamt node")
 	}
@@ -202,8 +211,10 @@ func (b Block) findInHamt(p datamodel.Path, depth int, visitFn func(p datamodel.
 		}
 		child := node.Children[linkIndex]
 		blk, err := child.Block()
-		if err != nil {
+		if fatalErr(ignoreMissing, err) {
 			return Block{}, 0, false, err
+		} else if err != nil {
+			return Block{}, depth, false, nil // pretend not found in this hamt
 		}
 		if blk.UnixfsPath.String() == b.UnixfsPath.String() && blk.DataType == data.Data_HAMTShard {
 			visitFn(p.Pop(), depth, blk)
@@ -257,4 +268,14 @@ func ParseQuery(spec string) (
 	}
 
 	return root, path, scope, duplicates, byteRange, nil
+}
+
+func fatalErr(ignoreMissing bool, err error) bool {
+	if err == nil {
+		return false
+	}
+	if nf, ok := err.(interface{ NotFound() bool }); ok && nf.NotFound() {
+		return !ignoreMissing
+	}
+	return true
 }

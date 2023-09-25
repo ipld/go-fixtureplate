@@ -60,6 +60,13 @@ var explainCommand = &cli.Command{
 				" incorporates elements, such as 'dups', that are normally included" +
 				" in the Accept header)",
 		},
+		&cli.BoolFlag{
+			Name:  "ignore-missing",
+			Value: false,
+			Usage: "Ignore missing blocks in the CAR. Useful for when you have a" +
+				" partial CAR and want to do a full (path=/) listing to see what's in" +
+				" it.",
+		},
 	},
 	Action: explainAction,
 }
@@ -130,7 +137,7 @@ func explainAction(c *cli.Context) error {
 		byteRange = &br
 	}
 
-	return blk.Navigate(path, scope, *byteRange, block.WritingVisitor(c.App.Writer, duplicates, fullPath))
+	return blk.Navigate(path, scope, *byteRange, c.Bool("ignore-missing"), block.WritingVisitor(c.App.Writer, duplicates, fullPath))
 }
 
 func loadCar(carPath string) (block.Block, *os.File, error) {

@@ -43,7 +43,7 @@ func TestNavigateUnixfs20MVariety(t *testing.T) {
 			if byteRange != nil {
 				br = *byteRange
 			}
-			req.NoError(blk.Navigate(path, scope, br, visitor))
+			req.NoError(blk.Navigate(path, scope, br, false, visitor))
 
 			req.Equal(tc.Execution, buf.String())
 		})

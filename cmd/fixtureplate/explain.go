@@ -2,19 +2,14 @@ package main
 
 import (
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
-	"strings"
 
-	"github.com/dustin/go-humanize"
 	"github.com/ipfs/go-cid"
-	"github.com/ipfs/go-unixfsnode/data"
 	"github.com/ipld/go-fixtureplate/block"
 	"github.com/ipld/go-fixtureplate/car"
 	"github.com/ipld/go-ipld-prime/datamodel"
 	trustlessutils "github.com/ipld/go-trustless-utils"
-	trustlesshttp "github.com/ipld/go-trustless-utils/http"
 	cli "github.com/urfave/cli/v2"
 )
 
@@ -74,7 +69,7 @@ func explainAction(c *cli.Context) error {
 		return fmt.Errorf("no CAR file specified")
 	}
 
-	path := datamodel.EmptyPath
+	path := datamodel.Path{}
 	scope := trustlessutils.DagScopeAll
 	duplicates := true
 	var byteRange *trustlessutils.ByteRange
@@ -82,36 +77,8 @@ func explainAction(c *cli.Context) error {
 	var root cid.Cid
 
 	if c.IsSet("query") {
-		spec := c.String("query")
-		specParts := strings.Split(spec, "?")
-		spec = specParts[0]
-
-		root, path, err = trustlesshttp.ParseUrlPath(spec)
-		if err != nil {
+		if root, path, scope, duplicates, byteRange, err = block.ParseQuery(c.String("query")); err != nil {
 			return err
-		}
-
-		switch len(specParts) {
-		case 1:
-		case 2:
-			query, err := url.ParseQuery(specParts[1])
-			if err != nil {
-				return err
-			}
-			scope, err = trustlessutils.ParseDagScope(query.Get("dag-scope"))
-			if err != nil {
-				return err
-			}
-			duplicates = query.Get("dups") != "n"
-			if query.Get("entity-bytes") != "" {
-				br, err := trustlessutils.ParseByteRange(query.Get("entity-bytes"))
-				if err != nil {
-					return err
-				}
-				byteRange = &br
-			}
-		default:
-			return fmt.Errorf("invalid query: %s", spec)
 		}
 	}
 
@@ -151,7 +118,7 @@ func explainAction(c *cli.Context) error {
 		return fmt.Errorf("root CID [%s] does not match CAR file root [%s]", root, blk.Cid)
 	}
 
-	printQuery(blk.Cid, path, scope, byteRange, duplicates)
+	fmt.Println(block.PrintableQuery(blk.Cid, path, scope, byteRange, duplicates))
 
 	if byteRange != nil {
 		if scope != trustlessutils.DagScopeEntity {
@@ -163,53 +130,7 @@ func explainAction(c *cli.Context) error {
 		byteRange = &br
 	}
 
-	return blk.Navigate(path, scope, *byteRange, visitor(duplicates, fullPath))
-}
-
-func visitor(duplicates, fullPath bool) func(p datamodel.Path, depth int, blk block.Block) {
-	var lastDepth int
-	seen := make(map[cid.Cid]struct{}, 0)
-
-	return func(p datamodel.Path, depth int, blk block.Block) {
-		if _, ok := seen[blk.Cid]; !duplicates && ok {
-			return
-		}
-		seen[blk.Cid] = struct{}{}
-
-		depthPad := strings.Repeat("  ", depth)
-		if depth > lastDepth {
-			depthPad = depthPad[:len(depthPad)-2] + "↳ "
-		}
-		fo := ""
-		if fullPath {
-			fo = fmt.Sprintf("/%s", blk.UnixfsPath.String())
-		} else {
-			fo = fmt.Sprintf("/%s", blk.UnixfsPath.Last().String())
-		}
-		if blk.ByteSize > 0 {
-			fo += fmt.Sprintf(" [%d:%d] (%s B)", blk.ByteOffset, blk.ByteOffset+blk.ByteSize-1, humanize.Comma(blk.ByteSize))
-		} else if blk.DataType == data.Data_HAMTShard && blk.ShardIndex != "" {
-			fo += fmt.Sprintf(" [%s]", blk.ShardIndex)
-		}
-		fmt.Printf("%-10s | %-9s | %s%s\n", blk.Cid, blk.DataTypeString(), depthPad, fo)
-		lastDepth = depth
-	}
-}
-
-func printQuery(c cid.Cid, path datamodel.Path, scope trustlessutils.DagScope, byteRange *trustlessutils.ByteRange, duplicates bool) {
-	pp := path.String()
-	if pp != "" {
-		pp = "/" + pp
-	}
-	br := ""
-	if byteRange != nil {
-		br = fmt.Sprintf("&entity-bytes=%s", byteRange.String())
-	}
-	dup := ""
-	if !duplicates {
-		dup = "&dups=n"
-	}
-	fmt.Printf("/ipfs/%s%s?dag-scope=%s%s%s\n", c, pp, scope, br, dup)
+	return blk.Navigate(path, scope, *byteRange, block.WritingVisitor(c.App.Writer, duplicates, fullPath))
 }
 
 func loadCar(carPath string) (block.Block, *os.File, error) {

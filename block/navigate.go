@@ -5,12 +5,16 @@ import (
 	"fmt"
 	"math"
 	"math/bits"
+	"net/url"
+	"strings"
 
 	"github.com/ipfs/go-bitfield"
+	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-unixfsnode/data"
 	"github.com/ipld/go-fixtureplate/unixfs"
 	"github.com/ipld/go-ipld-prime/datamodel"
 	trustlessutils "github.com/ipld/go-trustless-utils"
+	trustlesshttp "github.com/ipld/go-trustless-utils/http"
 )
 
 func (b Block) Navigate(
@@ -19,15 +23,15 @@ func (b Block) Navigate(
 	bytes trustlessutils.ByteRange,
 	visitFn func(p datamodel.Path, depth int, b Block),
 ) error {
-	visitFn(datamodel.EmptyPath, 0, b)
+	visitFn(datamodel.Path{}, 0, b)
 
 	progress := datamodel.Path{}
-	nextSeg := datamodel.EmptyPathSegment
 	curr := b
 	depth := 0
 
 outer:
 	for path.Len() > 0 {
+		var nextSeg datamodel.PathSegment
 		nextSeg, path = path.Shift()
 		progress = progress.AppendSegment(nextSeg)
 
@@ -40,7 +44,6 @@ outer:
 						return err
 					}
 					depth++
-					fmt.Println("Data_Directory visitFn", progress.String())
 					visitFn(progress, depth, blk)
 					curr = blk
 					if scope == trustlessutils.DagScopeEntity && path.Len() == 0 {
@@ -50,7 +53,6 @@ outer:
 				}
 			}
 		case data.Data_HAMTShard:
-			fmt.Println("Descend into hamt", progress.String())
 			child, _depth, found, err := curr.findInHamt(progress, depth+1, visitFn)
 			if err != nil {
 				return err
@@ -59,12 +61,11 @@ outer:
 				return errors.New("not found in HAMT")
 			}
 			depth = _depth
-			fmt.Println("Data_HAMTShard visitFn", progress.String())
 			visitFn(progress, depth, child)
+			curr = child
 			if scope == trustlessutils.DagScopeEntity && path.Len() == 0 {
 				break outer
 			}
-			curr = child
 			continue outer
 		default:
 			return errors.New("unsupported " + data.DataTypeNames[int64(curr.DataType)])
@@ -77,11 +78,9 @@ outer:
 	case trustlessutils.DagScopeBlock:
 		return nil
 	case trustlessutils.DagScopeEntity:
-		fmt.Println("DagScopeEntity visitAllEntity visitFn", progress.String())
 		return curr.visitAllEntity(progress, bytes, depth+1, visitFn)
 	}
 
-	fmt.Println("end of Navigate visitAll", progress.String())
 	return curr.visitAll(progress, depth+1, visitFn)
 }
 
@@ -104,6 +103,9 @@ func (b Block) visitAllFile(p datamodel.Path, bytes trustlessutils.ByteRange, de
 	var to int64 = math.MaxInt64
 	if bytes.To != nil {
 		to = *bytes.To
+		if to > 0 {
+			to++ // selector is exclusive, so increment the end
+		}
 	}
 	if from < 0 {
 		from = b.Length() + from
@@ -131,7 +133,7 @@ func (b Block) visitAllFile(p datamodel.Path, bytes trustlessutils.ByteRange, de
 			if child.ByteOffset+b.BlockSizes[ii]-1 < from {
 				continue
 			}
-			if child.ByteOffset > to {
+			if child.ByteOffset >= to {
 				continue
 			}
 			blk, err := child.Block()
@@ -213,4 +215,46 @@ func (b Block) findInHamt(p datamodel.Path, depth int, visitFn func(p datamodel.
 			return Block{}, 0, false, fmt.Errorf("unexpected hamt child, %s != %s", child.UnixfsPath.Last().String(), key)
 		}
 	}
+}
+
+func ParseQuery(spec string) (
+	root cid.Cid,
+	path datamodel.Path,
+	scope trustlessutils.DagScope,
+	duplicates bool,
+	byteRange *trustlessutils.ByteRange,
+	err error,
+) {
+	specParts := strings.Split(spec, "?")
+	spec = specParts[0]
+
+	root, path, err = trustlesshttp.ParseUrlPath(spec)
+	if err != nil {
+		return root, path, scope, duplicates, byteRange, err
+	}
+
+	switch len(specParts) {
+	case 1:
+	case 2:
+		query, err := url.ParseQuery(specParts[1])
+		if err != nil {
+			return root, path, scope, duplicates, byteRange, err
+		}
+		scope, err = trustlessutils.ParseDagScope(query.Get("dag-scope"))
+		if err != nil {
+			return root, path, scope, duplicates, byteRange, err
+		}
+		duplicates = query.Get("dups") != "n"
+		if query.Get("entity-bytes") != "" {
+			br, err := trustlessutils.ParseByteRange(query.Get("entity-bytes"))
+			if err != nil {
+				return root, path, scope, duplicates, byteRange, err
+			}
+			byteRange = &br
+		}
+	default:
+		return root, path, scope, duplicates, byteRange, fmt.Errorf("invalid query: %s", spec)
+	}
+
+	return root, path, scope, duplicates, byteRange, nil
 }

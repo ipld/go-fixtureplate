@@ -45,9 +45,15 @@ func Parse(str string) (Entity, error) {
 		if et.Multiplier != 1 || et.RandomMultiplier {
 			return nil, errors.New("root entity must be strictly signular")
 		}
+		if et.Name != "" {
+			return nil, errors.New("root entity can't be named")
+		}
 	case Directory:
 		if et.Multiplier != 1 || et.RandomMultiplier {
 			return nil, errors.New("root entity must be strictly signular")
+		}
+		if et.Name != "" {
+			return nil, errors.New("root entity can't be named")
 		}
 	}
 	return e, nil
@@ -113,7 +119,7 @@ func (p *parser) parseFile(multiplier int, rnd bool) (Entity, error) {
 		return nil, err
 	}
 	if name != "" && (multiplier > 1 || rnd) {
-		return nil, p.newParseError("can't name a file with a multiplier")
+		return nil, p.newParseError("file with a multiplier can't be named")
 	}
 	return File{
 		Name:             name,
@@ -131,7 +137,7 @@ func (p *parser) parseDir(multiplier int, rnd bool) (Entity, error) {
 		return nil, err
 	}
 	if name != "" && (multiplier > 1 || rnd) {
-		return nil, p.newParseError("can't name a directory with a multiplier")
+		return nil, p.newParseError("directory with a multiplier can't be named")
 	}
 	if err := p.slurpOpen(); err != nil {
 		return nil, err

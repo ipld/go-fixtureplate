@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
+	"path"
 	"strings"
 
 	"github.com/dustin/go-humanize"
@@ -234,7 +235,18 @@ func (d Directory) Generate(lsys linking.LinkSystem, rand *rand.Rand) (unixfstes
 			if err != nil {
 				return nil, err
 			}
-			de.Path = name
+			var chname string
+			switch et := ch.(type) {
+			case File:
+				chname = et.Name
+			case Directory:
+				chname = et.Name
+			}
+			if chname != "" {
+				de.Path = path.Dir(name) + "/" + chname
+			} else {
+				de.Path = name
+			}
 			return &de, nil
 		}))
 }

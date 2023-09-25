@@ -24,9 +24,9 @@ func TestParsing(t *testing.T) {
 			explained: "A file of approximately 1.0 kB",
 		},
 		{
-			input:     `file:101{name:"beep boop"}`,
-			expected:  File{Multiplier: 1, Size: 101, Name: "beep boop"},
-			explained: "A file named \"beep boop\" of 101 B",
+			input:     `dir(file:101{name:"beep boop"})`,
+			expected:  Directory{Multiplier: 1, Type: DirType_Plain, Children: []Entity{File{Multiplier: 1, Size: 101, Name: "beep boop"}}},
+			explained: "A directory containing:\n  → A file named \"beep boop\" of 101 B",
 		},
 		{
 			input:     `file:1MiB{zero}`,
@@ -34,14 +34,14 @@ func TestParsing(t *testing.T) {
 			explained: "A file of 1.0 MiB containing just zeros",
 		},
 		{
-			input:     `file:101{zero,name:"beep boop"}`,
-			expected:  File{Multiplier: 1, Size: 101, ZeroContent: true, Name: "beep boop"},
-			explained: "A file named \"beep boop\" of 101 B containing just zeros",
+			input:     `dir(file:101{zero,name:"beep boop"})`,
+			expected:  Directory{Multiplier: 1, Type: DirType_Plain, Children: []Entity{File{Multiplier: 1, Size: 101, ZeroContent: true, Name: "beep boop"}}},
+			explained: "A directory containing:\n  → A file named \"beep boop\" of 101 B containing just zeros",
 		},
 		{
-			input:     `file:101{name:"beep boop",zero}`,
-			expected:  File{Multiplier: 1, Size: 101, ZeroContent: true, Name: "beep boop"},
-			explained: "A file named \"beep boop\" of 101 B containing just zeros",
+			input:     `dir(file:101{name:"beep boop",zero})`,
+			expected:  Directory{Multiplier: 1, Type: DirType_Plain, Children: []Entity{File{Multiplier: 1, Size: 101, ZeroContent: true, Name: "beep boop"}}},
+			explained: "A directory containing:\n  → A file named \"beep boop\" of 101 B containing just zeros",
 		},
 		{
 			input:     `dir(file:1K)`,
@@ -59,29 +59,29 @@ func TestParsing(t *testing.T) {
 			explained: "A directory sharded with bitwidth 2 containing:\n  → A file of 1.0 kB",
 		},
 		{
-			input:     `dir{name:"blip blop"}(file:1K)`,
-			expected:  Directory{Multiplier: 1, Type: DirType_Plain, Name: "blip blop", Children: []Entity{File{Multiplier: 1, Size: 1000}}},
-			explained: "A directory named \"blip blop\" containing:\n  → A file of 1.0 kB",
+			input:     `dir(dir{name:"blip blop"}(file:1K))`,
+			expected:  Directory{Multiplier: 1, Type: DirType_Plain, Children: []Entity{Directory{Multiplier: 1, Type: DirType_Plain, Name: "blip blop", Children: []Entity{File{Multiplier: 1, Size: 1000}}}}},
+			explained: "A directory containing:\n  → A directory named \"blip blop\" containing:\n    → A file of 1.0 kB",
 		},
 		{
-			input:     `dir{sharded,name:"blip blop"}(file:1K)`,
-			expected:  Directory{Multiplier: 1, Type: DirType_Sharded, ShardBitwidth: 4, Name: "blip blop", Children: []Entity{File{Multiplier: 1, Size: 1000}}},
-			explained: "A directory named \"blip blop\" sharded with bitwidth 4 containing:\n  → A file of 1.0 kB",
+			input:     `dir(dir{sharded,name:"blip blop"}(file:1K))`,
+			expected:  Directory{Multiplier: 1, Type: DirType_Plain, Children: []Entity{Directory{Multiplier: 1, Type: DirType_Sharded, ShardBitwidth: 4, Name: "blip blop", Children: []Entity{File{Multiplier: 1, Size: 1000}}}}},
+			explained: "A directory containing:\n  → A directory named \"blip blop\" sharded with bitwidth 4 containing:\n    → A file of 1.0 kB",
 		},
 		{
-			input:     `dir{name:"blip blop",sharded}(file:1K)`,
-			expected:  Directory{Multiplier: 1, Type: DirType_Sharded, ShardBitwidth: 4, Name: "blip blop", Children: []Entity{File{Multiplier: 1, Size: 1000}}},
-			explained: "A directory named \"blip blop\" sharded with bitwidth 4 containing:\n  → A file of 1.0 kB",
+			input:     `dir(dir{name:"blip blop",sharded}(file:1K))`,
+			expected:  Directory{Multiplier: 1, Type: DirType_Plain, Children: []Entity{Directory{Multiplier: 1, Type: DirType_Sharded, ShardBitwidth: 4, Name: "blip blop", Children: []Entity{File{Multiplier: 1, Size: 1000}}}}},
+			explained: "A directory containing:\n  → A directory named \"blip blop\" sharded with bitwidth 4 containing:\n    → A file of 1.0 kB",
 		},
 		{
-			input:     `dir{sharded:3,name:"blip blop"}(file:1K)`,
-			expected:  Directory{Multiplier: 1, Type: DirType_Sharded, ShardBitwidth: 3, Name: "blip blop", Children: []Entity{File{Multiplier: 1, Size: 1000}}},
-			explained: "A directory named \"blip blop\" sharded with bitwidth 3 containing:\n  → A file of 1.0 kB",
+			input:     `dir(dir{sharded:3,name:"blip blop"}(file:1K))`,
+			expected:  Directory{Multiplier: 1, Type: DirType_Plain, Children: []Entity{Directory{Multiplier: 1, Type: DirType_Sharded, ShardBitwidth: 3, Name: "blip blop", Children: []Entity{File{Multiplier: 1, Size: 1000}}}}},
+			explained: "A directory containing:\n  → A directory named \"blip blop\" sharded with bitwidth 3 containing:\n    → A file of 1.0 kB",
 		},
 		{
-			input:     `dir{name:"blip blop",sharded:3}(file:1K)`,
-			expected:  Directory{Multiplier: 1, Type: DirType_Sharded, ShardBitwidth: 3, Name: "blip blop", Children: []Entity{File{Multiplier: 1, Size: 1000}}},
-			explained: "A directory named \"blip blop\" sharded with bitwidth 3 containing:\n  → A file of 1.0 kB",
+			input:     `dir(dir{name:"blip blop",sharded:3}(file:1K))`,
+			expected:  Directory{Multiplier: 1, Type: DirType_Plain, Children: []Entity{Directory{Multiplier: 1, Type: DirType_Sharded, ShardBitwidth: 3, Name: "blip blop", Children: []Entity{File{Multiplier: 1, Size: 1000}}}}},
+			explained: "A directory containing:\n  → A directory named \"blip blop\" sharded with bitwidth 3 containing:\n    → A file of 1.0 kB",
 		},
 		{
 			input: `dir(file:1,file:2,file:3)`,
@@ -166,17 +166,17 @@ func TestParsing(t *testing.T) {
 		},
 		{
 			// sanity check for the next 2
-			input:     `1*dir{name:"boop"}(file:1kib)`,
-			expected:  Directory{Multiplier: 1, Type: DirType_Plain, Name: "boop", Children: []Entity{File{Multiplier: 1, Size: 1024}}},
-			explained: "A directory named \"boop\" containing:\n  → A file of 1.0 KiB",
+			input:     `dir(1*dir{name:"boop"}(file:1kib))`,
+			expected:  Directory{Multiplier: 1, Type: DirType_Plain, Children: []Entity{Directory{Multiplier: 1, Type: DirType_Plain, Name: "boop", Children: []Entity{File{Multiplier: 1, Size: 1024}}}}},
+			explained: "A directory containing:\n  → A directory named \"boop\" containing:\n    → A file of 1.0 KiB",
 		},
 		{
-			input: `2*dir{name:"boop"}(file:1kib)`,
-			err:   "can't name a directory with a multiplier",
+			input: `dir(2*dir{name:"boop"}(file:1kib))`,
+			err:   "directory with a multiplier can't be named",
 		},
 		{
-			input: `~1*dir{name:"boop"}(file:1kib)`,
-			err:   "can't name a directory with a multiplier",
+			input: `dir(~1*dir{name:"boop"}(file:1kib))`,
+			err:   "directory with a multiplier can't be named",
 		},
 		{
 			// sanity check for the next 2
@@ -186,11 +186,19 @@ func TestParsing(t *testing.T) {
 		},
 		{
 			input: `dir(2*file:1kib{name:"boop"})`,
-			err:   "can't name a file with a multiplier",
+			err:   "file with a multiplier can't be named",
 		},
 		{
 			input: `dir(~1*file:1kib{name:"boop"})`,
-			err:   "can't name a file with a multiplier",
+			err:   "file with a multiplier can't be named",
+		},
+		{
+			input: `dir{name:"boop"}(file:1kib)`,
+			err:   "root entity can't be named",
+		},
+		{
+			input: `file:1kib{name:"boop"}`,
+			err:   "root entity can't be named",
 		},
 		{
 			input: `dir(~5*file:1.0kB,~5*file:~102kB,2*dir{sharded}(~10*file:51kB),file:1.0MB{zero},file:10B,file:20B)`,

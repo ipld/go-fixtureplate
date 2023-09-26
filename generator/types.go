@@ -1,6 +1,7 @@
 package generator
 
 import (
+	"encoding/binary"
 	"fmt"
 	"io"
 	"math/rand"
@@ -14,7 +15,11 @@ import (
 )
 
 type Entity interface {
-	Generate(lsys linking.LinkSystem, rnd *rand.Rand) (unixfstestutil.DirEntry, error)
+	GetName() string
+	GetMultiplier() int
+	IsRandomMultiplier() bool
+
+	Generate(lsys linking.LinkSystem, rndReader io.Reader) (unixfstestutil.DirEntry, error)
 	String() string
 	Describe(indent string) string
 }
@@ -29,6 +34,18 @@ type File struct {
 	ZeroContent      bool
 	Multiplier       int
 	RandomMultiplier bool
+}
+
+func (f File) GetName() string {
+	return f.Name
+}
+
+func (f File) GetMultiplier() int {
+	return f.Multiplier
+}
+
+func (f File) IsRandomMultiplier() bool {
+	return f.RandomMultiplier
 }
 
 func (f File) String() string {
@@ -93,15 +110,14 @@ func (f File) Describe(indent string) string {
 // Generate _one_ of the files described by this descriptor. If there are
 // multiple files described by this descriptor, call this function multiple
 // times.
-func (f File) Generate(lsys linking.LinkSystem, rand *rand.Rand) (unixfstestutil.DirEntry, error) {
-	var rndReader io.Reader = rand
+func (f File) Generate(lsys linking.LinkSystem, rndReader io.Reader) (unixfstestutil.DirEntry, error) {
 	if f.ZeroContent {
 		rndReader = trustlesstestutil.ZeroReader{}
 	}
 	targetFileSize := int(f.Size)
 	if f.RandomSize {
 		for {
-			targetFileSize = int(rand.NormFloat64()*float64(targetFileSize)/10.0 + float64(targetFileSize))
+			targetFileSize = randNormInt(rndReader, targetFileSize)
 			if targetFileSize > 0 {
 				break
 			}
@@ -126,6 +142,17 @@ type Directory struct {
 	Children         []Entity
 }
 
+func (d Directory) GetName() string {
+	return d.Name
+}
+
+func (d Directory) GetMultiplier() int {
+	return d.Multiplier
+}
+
+func (d Directory) IsRandomMultiplier() bool {
+	return d.RandomMultiplier
+}
 func (d Directory) String() string {
 	var sb strings.Builder
 	if d.RandomMultiplier {
@@ -188,28 +215,21 @@ func (d Directory) Describe(indent string) string {
 	return sb.String()
 }
 
-func (d Directory) Generate(lsys linking.LinkSystem, rand *rand.Rand) (unixfstestutil.DirEntry, error) {
+func (d Directory) Generate(lsys linking.LinkSystem, rndReader io.Reader) (unixfstestutil.DirEntry, error) {
+	return d.generate("", lsys, rndReader)
+}
+
+func (d Directory) generate(parentName string, lsys linking.LinkSystem, rndReader io.Reader) (unixfstestutil.DirEntry, error) {
 	var sbw int
 	if d.Type == DirType_Sharded {
 		sbw = d.ShardBitwidth
 	}
 	children := make([]Entity, 0)
 	for _, child := range d.Children {
-		var multiplier int
-		var rndMultiplier bool
-		switch et := child.(type) {
-		case File:
-			multiplier = et.Multiplier
-			rndMultiplier = et.RandomMultiplier
-		case Directory:
-			multiplier = et.Multiplier
-			rndMultiplier = et.RandomMultiplier
-		default:
-			return unixfstestutil.DirEntry{}, fmt.Errorf("unknown entity type: %T", et)
-		}
-		if rndMultiplier {
+		multiplier := child.GetMultiplier()
+		if child.IsRandomMultiplier() {
 			for {
-				multiplier = int(rand.NormFloat64()*float64(multiplier)/10.0 + float64(multiplier))
+				multiplier = randNormInt(rndReader, multiplier)
 				if multiplier >= 0 { // could be zero!
 					break
 				}
@@ -223,30 +243,60 @@ func (d Directory) Generate(lsys linking.LinkSystem, rand *rand.Rand) (unixfstes
 	return unixfstestutil.UnixFSDirectory(
 		lsys,
 		0,
-		unixfstestutil.WithRandReader(rand),
+		unixfstestutil.WithRandReader(rndReader),
 		unixfstestutil.WithShardBitwidth(sbw),
+		unixfstestutil.WithDirname(parentName),
 		unixfstestutil.WithChildGenerator(func(name string) (*unixfstestutil.DirEntry, error) {
 			if chidx >= len(children) {
 				return nil, nil
 			}
 			ch := children[chidx]
 			chidx++
-			de, err := ch.Generate(lsys, rand)
-			if err != nil {
-				return nil, err
+			var err error
+			var de unixfstestutil.DirEntry
+			chname := name
+			if ch.GetName() != "" { // override
+				chname = path.Dir(name) + "/" + ch.GetName()
 			}
-			var chname string
 			switch et := ch.(type) {
 			case File:
-				chname = et.Name
+				if de, err = ch.Generate(lsys, rndReader); err != nil {
+					return nil, err
+				}
 			case Directory:
-				chname = et.Name
+				if de, err = et.generate(chname, lsys, rndReader); err != nil {
+					return nil, err
+				}
 			}
-			if chname != "" {
-				de.Path = path.Dir(name) + "/" + chname
-			} else {
-				de.Path = name
-			}
+			de.Path = chname
 			return &de, nil
 		}))
+}
+
+func randNormInt(r io.Reader, mean int) int {
+	rnd := rand.New(rrandSource{r})
+	return int(rnd.NormFloat64()*float64(mean)/10.0 + float64(mean))
+}
+
+var _ rand.Source = rrandSource{}
+var _ rand.Source64 = rrandSource{}
+
+type rrandSource struct {
+	r io.Reader
+}
+
+func (s rrandSource) Seed(seed int64) {
+	panic("unsupported operation [Seed()]")
+}
+
+func (s rrandSource) Int63() int64 {
+	return int64(s.Uint64() & ^uint64(1<<63))
+}
+
+func (s rrandSource) Uint64() (v uint64) {
+	err := binary.Read(s.r, binary.BigEndian, &v)
+	if err != nil {
+		panic(err)
+	}
+	return v
 }

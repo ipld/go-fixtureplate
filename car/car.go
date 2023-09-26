@@ -22,13 +22,11 @@ func LinkSystem(carFile *os.File) (ipld.LinkSystem, cid.Cid, error) {
 	if len(storage.Roots()) == 1 {
 		root = storage.Roots()[0]
 	} else {
-		// infer from filename
+		// attempt infer from filename, but not fatal if we don't, caller may be
+		// able to get it from another source
 		cidStr := filepath.Base(carFile.Name())
 		cidStr = cidStr[:len(cidStr)-len(filepath.Ext(cidStr))]
-		root, err = cid.Parse(cidStr)
-		if err != nil {
-			return ipld.LinkSystem{}, cid.Undef, err
-		}
+		root, _ = cid.Parse(cidStr)
 	}
 
 	lsys := cidlink.DefaultLinkSystem()

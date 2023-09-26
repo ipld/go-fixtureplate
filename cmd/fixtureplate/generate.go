@@ -41,6 +41,7 @@ func generateAction(c *cli.Context) error {
 	if err != nil {
 		if err, ok := err.(generator.ErrParse); ok {
 			// move in enough spaces to point to err.Pos on the line above
+			fmt.Printf("Input spec: %s\n", spec)
 			fmt.Printf("            %s^\n", strings.Repeat(" ", err.Pos))
 		}
 		return err

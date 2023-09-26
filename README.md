@@ -137,6 +137,7 @@ Explain the IPLD contents and paths in a CAR file.
 
 ```console
 $ fixtureplate explain --car=<car> \
+  [--root=<cid>] \
   [--path=<path>] \
   [--scope=<scope>] \
   [--bytes=<byte range>] \
@@ -155,6 +156,7 @@ Where:
 
 * `--car` specifies the path to a CAR file to inspect.
 * `--query` specifies an [IPFS Trustless Gateway](https://specs.ipfs.tech/http-gateways/trustless-gateway/) style query to execute. e.g. `/ipfs/<cid>/<path>?dag-scope=<scope>&entity-bytes=<byte range>`. See [the specification](https://specs.ipfs.tech/http-gateways/trustless-gateway/) for full details. Note though that the query here also includes some elements not normally provided on the query string, such as the `dups=y|n` which is normally in the `Accept` header.
+* `--root` specifies a root CID to use, overriding the root CID in the CAR file _or_ the `--query`. If not specified, the root CID in the CAR file or `--query` will be used. This may be useful for cases where you are dealing with a CAR without roots, or you want to start from a sub-DAG in the CAR.
 * `--path` (default: `/`) specifies a path through the DAG to follow. If not specified, an implicit path of `/` will be used, which will traverse and explain the entire DAG. This would be equivalent to `--query=/ipfs/<cid>?dag-scope=all`.
 * `--scope` (or `--dag-scope`, default: `all`) specifies the scope of the traversal at the terminus of the PATH. See the [IPFS Trustless Gateway](https://specs.ipfs.tech/http-gateways/trustless-gateway/) specification for full details. If not specified, the default scope is `all`. Options include `block`, to halt at the block, and `entity` to halt at the block _or_ sharded entity (directory or file) at the terminus of the path.
 * `--bytes` (or `--entity-bytes`) specifies the byte range of the entity to return. See the [IPFS Trustless Gateway](https://specs.ipfs.tech/http-gateways/trustless-gateway/) specification for full details. If not specified, the default is to return the entire entity. Supplying a byte range will implicitly set the scope to `entity`.

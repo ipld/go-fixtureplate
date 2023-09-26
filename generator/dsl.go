@@ -40,21 +40,11 @@ func Parse(str string) (Entity, error) {
 	if strings.TrimSpace(p.str[p.pos:]) != "" {
 		return nil, errors.New("unexpected trailing characters")
 	}
-	switch et := e.(type) {
-	case File:
-		if et.Multiplier != 1 || et.RandomMultiplier {
-			return nil, errors.New("root entity must be strictly signular")
-		}
-		if et.Name != "" {
-			return nil, errors.New("root entity can't be named")
-		}
-	case Directory:
-		if et.Multiplier != 1 || et.RandomMultiplier {
-			return nil, errors.New("root entity must be strictly signular")
-		}
-		if et.Name != "" {
-			return nil, errors.New("root entity can't be named")
-		}
+	if e.GetMultiplier() != 1 || e.IsRandomMultiplier() {
+		return nil, errors.New("root entity must be strictly signular")
+	}
+	if e.GetName() != "" {
+		return nil, errors.New("root entity can't be named")
 	}
 	return e, nil
 }

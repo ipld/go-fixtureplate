@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -19,9 +20,12 @@ var explainCommand = &cli.Command{
 		" the block traversal details",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
-			Name:     "car",
-			Usage:    "CAR file to read from",
-			Required: true,
+			Name:  "car",
+			Usage: "CAR file to read from, if not supplied, the first unnamed argument will be used",
+		},
+		&cli.StringFlag{
+			Name:  "root",
+			Usage: "Override the root CID of the CAR file or query",
 		},
 		&cli.StringFlag{
 			Name:        "path",
@@ -73,8 +77,13 @@ var explainCommand = &cli.Command{
 }
 
 func explainAction(c *cli.Context) error {
-	if !c.IsSet("car") {
-		return fmt.Errorf("no CAR file specified")
+	carPath := c.String("car")
+	if carPath == "" {
+		if c.Args().Len() > 0 {
+			carPath = c.Args().First()
+		} else {
+			return fmt.Errorf("no CAR file specified")
+		}
 	}
 
 	path := datamodel.Path{}
@@ -92,6 +101,13 @@ func explainAction(c *cli.Context) error {
 
 	if c.IsSet("path") {
 		path = datamodel.ParsePath(c.String("path"))
+	}
+
+	if c.IsSet("root") {
+		root, err = cid.Parse(c.String("root"))
+		if err != nil {
+			return err
+		}
 	}
 
 	if c.IsSet("scope") {
@@ -115,16 +131,11 @@ func explainAction(c *cli.Context) error {
 
 	fullPath := c.Bool("full-path")
 
-	blk, carFile, err := loadCar(c.String("car"))
+	blk, carFile, err := loadCar(c.App.ErrWriter, root, carPath)
 	if err != nil {
 		return err
 	}
 	defer carFile.Close()
-
-	if root != cid.Undef && root != blk.Cid {
-		// TODO: allow override of root CID?
-		return fmt.Errorf("root CID [%s] does not match CAR file root [%s]", root, blk.Cid)
-	}
 
 	fmt.Println(block.PrintableQuery(blk.Cid, path, scope, byteRange, duplicates))
 
@@ -141,7 +152,7 @@ func explainAction(c *cli.Context) error {
 	return blk.Navigate(path, scope, *byteRange, c.Bool("ignore-missing"), block.WritingVisitor(c.App.Writer, duplicates, fullPath))
 }
 
-func loadCar(carPath string) (block.Block, *os.File, error) {
+func loadCar(printWriter io.Writer, requestedRoot cid.Cid, carPath string) (block.Block, *os.File, error) {
 	var err error
 	carPath, err = filepath.Abs(carPath)
 	if err != nil {
@@ -154,6 +165,17 @@ func loadCar(carPath string) (block.Block, *os.File, error) {
 	ls, root, err := car.LinkSystem(carFile)
 	if err != nil {
 		return block.Block{}, nil, err
+	}
+	if requestedRoot != cid.Undef && requestedRoot != root {
+		cr := root.String()
+		if root == cid.Undef {
+			cr = "none"
+		}
+		fmt.Fprintf(printWriter, "Requested root CID [%s] does not match CAR file root [%s], proceeding with request\n", requestedRoot.String(), cr)
+		root = requestedRoot
+	}
+	if root == cid.Undef {
+		return block.Block{}, nil, fmt.Errorf("no root CID specified and CAR file has no root CID")
 	}
 	blk, err := block.NewBlock(ls, root)
 	if err != nil {

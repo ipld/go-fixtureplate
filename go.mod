@@ -6,12 +6,12 @@ require (
 	github.com/dustin/go-humanize v1.0.1
 	github.com/ipfs/go-bitfield v1.1.0
 	github.com/ipfs/go-cid v0.4.1
-	github.com/ipfs/go-unixfsnode v1.8.2-0.20230925043011-4ff13ddbce13
+	github.com/ipfs/go-unixfsnode v1.9.0
 	github.com/ipld/go-car/v2 v2.13.1
 	github.com/ipld/go-codec-dagpb v1.6.0
 	github.com/ipld/go-ipld-prime v0.21.0
 	github.com/ipld/go-trustless-utils v0.3.0
-	github.com/ipld/ipld/specs v0.0.0-20230925094718-e68d2f5e1efb
+	github.com/ipld/ipld/specs v0.0.0-20230927010225-ef4dbd703269
 	github.com/spaolacci/murmur3 v1.1.0
 	github.com/test-go/testify v1.1.4
 	github.com/urfave/cli/v2 v2.25.7

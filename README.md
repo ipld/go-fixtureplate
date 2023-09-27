@@ -122,7 +122,7 @@ bafkreibzz7ccqrjibdd6ew2iqdyccc4hprasqy22rrkgdgmtt7pxhd7way | RawLeaf   |       
 To install the latest version of go-fixtureplate, run:
 
 ```console
-$ go install github.com/ipld/go-fixtureplate/cmd/go-fixtureplate@latest
+$ go install github.com/ipld/go-fixtureplate/cmd/fixtureplate@latest
 ```
 
 Binaries are directly available for download on the [releases page](https://github.com/ipld/go-fixtureplate/releases).

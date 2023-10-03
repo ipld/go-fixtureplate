@@ -75,13 +75,17 @@ func generateAction(c *cli.Context) error {
 	}
 
 	outFile := rootEnt.Root.String() + ".car"
-	if err := car.TraverseToFile(
+	out, err := os.Create(outFile)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	if _, err := car.TraverseV1(
 		c.Context,
 		&lsys,
 		rootEnt.Root,
 		selectorparse.CommonSelector_ExploreAllRecursively,
-		outFile,
-		car.WriteAsCarV1(true),
+		out,
 	); err != nil {
 		return err
 	}

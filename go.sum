@@ -76,8 +76,8 @@ github.com/ipld/go-codec-dagpb v1.6.0/go.mod h1:ANzFhfP2uMJxRBr8CE+WQWs5UsNa0pYt
 github.com/ipld/go-ipld-prime v0.21.0 h1:n4JmcpOlPDIxBcY037SVfpd1G+Sj1nKZah0m6QH9C2E=
 github.com/ipld/go-ipld-prime v0.21.0/go.mod h1:3RLqy//ERg/y5oShXXdx5YIp50cFGOanyMctpPjsvxQ=
 github.com/ipld/go-ipld-prime/storage/bsadapter v0.0.0-20230102063945-1a409dc236dd h1:gMlw/MhNr2Wtp5RwGdsW23cs+yCuj9k2ON7i9MiJlRo=
-github.com/ipld/go-trustless-utils v0.3.0 h1:Dx0t5362uOqub3orC8fPr60FdMkF+O3WNa0dkHjWPLU=
-github.com/ipld/go-trustless-utils v0.3.0/go.mod h1:nbUA6YuKZqNHYd3mYKALxOQa5aC8fnr2w+OxirSSOqc=
+github.com/ipld/go-trustless-utils v0.4.0 h1:ZSRvbfQG39BzGYeyHVmttTexZAEdA/grWdu6MB1kiJI=
+github.com/ipld/go-trustless-utils v0.4.0/go.mod h1:SQR5abLVb2YcZiy9QEsBhNyIPj6ubWISJnrpwNBdmpA=
 github.com/ipld/ipld/specs v0.0.0-20230927010225-ef4dbd703269 h1:MXBxKsw8geRJitw8f1dr3EfwbEV0WXVbEH7e/o3p+NI=
 github.com/ipld/ipld/specs v0.0.0-20230927010225-ef4dbd703269/go.mod h1:WcT0DfRe+e2QFY0kcbsOnuT6jL5Q0JNZ83I5DHIdStg=
 github.com/jbenet/go-random v0.0.0-20190219211222-123a90aedc0c h1:uUx61FiAa1GI6ZmVd2wf2vULeQZIKG66eybjNXKYCz4=

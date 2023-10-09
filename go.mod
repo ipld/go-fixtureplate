@@ -10,7 +10,7 @@ require (
 	github.com/ipld/go-car/v2 v2.13.1
 	github.com/ipld/go-codec-dagpb v1.6.0
 	github.com/ipld/go-ipld-prime v0.21.0
-	github.com/ipld/go-trustless-utils v0.3.0
+	github.com/ipld/go-trustless-utils v0.4.0
 	github.com/ipld/ipld/specs v0.0.0-20230927010225-ef4dbd703269
 	github.com/spaolacci/murmur3 v1.1.0
 	github.com/test-go/testify v1.1.4

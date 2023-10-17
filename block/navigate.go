@@ -108,7 +108,7 @@ func (b Block) visitAllFile(p datamodel.Path, bytes trustlessutils.ByteRange, de
 	var to int64 = math.MaxInt64
 	if bytes.To != nil {
 		to = *bytes.To
-		if to > 0 {
+		if to >= 0 {
 			to++ // selector is exclusive, so increment the end
 		}
 	}

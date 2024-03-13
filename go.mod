@@ -2,7 +2,6 @@ module github.com/ipld/go-fixtureplate
 
 go 1.21
 
-
 require (
 	github.com/dustin/go-humanize v1.0.1
 	github.com/ipfs/go-bitfield v1.1.0

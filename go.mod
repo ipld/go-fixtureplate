@@ -6,7 +6,7 @@ require (
 	github.com/dustin/go-humanize v1.0.1
 	github.com/ipfs/go-bitfield v1.1.0
 	github.com/ipfs/go-cid v0.4.1
-	github.com/ipfs/go-unixfsnode v1.9.1
+	github.com/ipfs/go-unixfsnode v1.9.2
 	github.com/ipld/go-car/v2 v2.14.2
 	github.com/ipld/go-codec-dagpb v1.6.0
 	github.com/ipld/go-ipld-prime v0.21.0
@@ -22,7 +22,7 @@ require (
 	github.com/cespare/xxhash v1.1.0 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.5 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/ipfs/boxo v0.22.0 // indirect
+	github.com/ipfs/boxo v0.24.0 // indirect
 	github.com/ipfs/go-block-format v0.2.0 // indirect
 	github.com/ipfs/go-ipfs-util v0.0.3 // indirect
 	github.com/ipfs/go-ipld-cbor v0.1.0 // indirect

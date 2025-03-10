@@ -14,7 +14,7 @@ require (
 	github.com/ipld/ipld/specs v0.0.0-20231012031213-54d3b21deda4
 	github.com/spaolacci/murmur3 v1.1.0
 	github.com/test-go/testify v1.1.4
-	github.com/urfave/cli/v2 v2.27.5
+	github.com/urfave/cli/v2 v2.27.6
 	github.com/warpfork/go-testmark v0.12.1
 )
 

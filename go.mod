@@ -14,13 +14,13 @@ require (
 	github.com/ipld/ipld/specs v0.0.0-20231012031213-54d3b21deda4
 	github.com/spaolacci/murmur3 v1.1.0
 	github.com/test-go/testify v1.1.4
-	github.com/urfave/cli/v2 v2.27.6
+	github.com/urfave/cli/v2 v2.27.7
 	github.com/warpfork/go-testmark v0.12.1
 )
 
 require (
 	github.com/cespare/xxhash v1.1.0 // indirect
-	github.com/cpuguy83/go-md2man/v2 v2.0.5 // indirect
+	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/ipfs/boxo v0.27.4 // indirect
 	github.com/ipfs/go-block-format v0.2.0 // indirect

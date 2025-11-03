@@ -5,7 +5,7 @@ go 1.24.0
 require (
 	github.com/dustin/go-humanize v1.0.1
 	github.com/ipfs/go-bitfield v1.1.0
-	github.com/ipfs/go-cid v0.5.0
+	github.com/ipfs/go-cid v0.6.0
 	github.com/ipfs/go-unixfsnode v1.10.2
 	github.com/ipld/go-car/v2 v2.16.0
 	github.com/ipld/go-codec-dagpb v1.7.0

@@ -7,7 +7,7 @@ require (
 	github.com/ipfs/go-bitfield v1.1.0
 	github.com/ipfs/go-cid v0.6.1
 	github.com/ipfs/go-unixfsnode v1.10.4
-	github.com/ipld/go-car/v2 v2.16.0
+	github.com/ipld/go-car/v2 v2.17.0
 	github.com/ipld/go-codec-dagpb v1.7.0
 	github.com/ipld/go-ipld-prime v0.24.0
 	github.com/ipld/go-trustless-utils v0.8.0

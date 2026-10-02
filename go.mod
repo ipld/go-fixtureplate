@@ -3,7 +3,7 @@ module github.com/ipld/go-fixtureplate
 go 1.25.7
 
 require (
-	github.com/dustin/go-humanize v1.0.1
+	github.com/dustin/go-humanize v1.1.0
 	github.com/ipfs/go-bitfield v1.1.0
 	github.com/ipfs/go-cid v0.6.2
 	github.com/ipfs/go-unixfsnode v1.10.6
